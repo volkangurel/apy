@@ -1,0 +1,6 @@
+A Python framework for Django to create RESTful APIs
+
+Here are some of the features:
+- Input validation based on model fields
+- Self generated object and method documentation pages
+- Proper use of http GET, POST, PATCH and DELETE
