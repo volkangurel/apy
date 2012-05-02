@@ -30,7 +30,7 @@ class ApiMethod(object):
     #pylint: disable=E1102,W0141
     __metaclass__ = ApiMethodMetaClass
 
-    http_method_names = ['get','post','patch','delete']
+    http_method_names = ['GET','POST','PATCH','DELETE']
     errors = getattr(settings,'apy_errors',Errors)
 
     InputForm = None
@@ -85,7 +85,7 @@ class ApiMethod(object):
         # Try to dispatch to the right method; if a method doesn't exist,
         # defer to the error handler. Also defer to the error handler if the
         # request method isn't on the approved list.
-        method = request.method.lower()
+        method = request.method.upper()
         if method not in self.http_method_names:
             return self.http_method_not_allowed()
         self.request = request
@@ -95,7 +95,7 @@ class ApiMethod(object):
             self.data = self.clean_data(self.get_data_from_request())
         except InvalidFormError, e:
             messages = [f + ": " + ". ".join(map(unicode,v)) for f, v in e.form.errors.items()]
-            response, http_status_code = self.error_response(self.errors.PARAM,messages)
+            response, http_status_code = self.error_response(self.errors.INVALID_PARAM,messages)
             return self.return_response(response, http_status_code)
 
         response, http_status_code = self.get_response()
@@ -110,8 +110,8 @@ class ApiMethod(object):
         return response
 
     def http_method_not_allowed(self):
-        message = 'Only %s allowed for this API method'%','.join(self.http_method_names)
-        response, http_status_code = self.error_response(self.errors.HTTP_METHOD,[message])
+        message = 'Only %s calls allowed for this API method'%(','.join(self.http_method_names))
+        response, http_status_code = self.error_response(self.errors.INVALID_HTTP_METHOD,[message])
         return self.return_response(response, http_status_code)
 
     ######################################
@@ -122,15 +122,17 @@ class ApiMethod(object):
         return response, http_code
 
     def error_response(self, error, messages=None):
-        d = {'ok': False, 'error_code': error[0], 'error_name': error[1]}
+        d = {'ok': False, 'error': error['name']}
         if messages: d['error_messages'] = messages
-        return d, error[2]
+        return d, error['http_code']
 
     def get_response(self):
         try:
             response, http_status_code = self.process()
         except AccessForbiddenError:
             response, http_status_code = self.error_response(self.errors.FORBIDDEN)
+        # except:
+        #     response, http_status_code = self.error_response(self.errors.UNKNOWN)
         return response, http_status_code
 
     ######################################
@@ -165,18 +167,22 @@ class ApiMethod(object):
                 d['limit'] = min(self.data['limit'],self.data['offset']-d['offset'])
                 response['pagination']['prev'] = self.request.build_absolute_uri(self.request.path+'?'+urllib.urlencode(d))
 
-        response_as_string = json.dumps(response)
+        response_format = self.data and self.data.get('response_format') or self.default_response_format
+        if response_format not in ['json']: response_format = 'json' # TODO add support for xml
+        if response_format=='json':
+            formatted_response = json.dumps(response)
+            mimetype='application/json'
+            callback = self.data and self.data.get('callback')
+            if callback:
+                formatted_response = '%s(%s)'%(callback,formatted_response)
+                mimetype = 'text/javascript'
 
-        callback = self.data.get('callback')
-        if callback:
-            return http.HttpResponse('%s(%s)'%(callback,response_as_string), status=http_status_code, mimetype='text/javascript')
-        else:
-            return http.HttpResponse(response_as_string, status=http_status_code, mimetype='application/json')
+        return http.HttpResponse(formatted_response, status=http_status_code, mimetype=mimetype)
 
     ######################################
     def process(self):
         """Overwrite this in subclasses to create the logic for the API method"""
-        return self.error_response(self.errors.API_METHOD)
+        return self.error_response(self.errors.UNKNOWN_API_METHOD)
 
     ######################################
     @property

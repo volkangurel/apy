@@ -6,16 +6,16 @@ from django.conf.urls.defaults import patterns, url
 from . import utils
 
 class ApiReadMethod(utils.ApiMethod):
-    http_method_names = ['get']
+    http_method_names = ['GET']
 
 class ApiCreateMethod(utils.ApiMethod):
-    http_method_names = ['post']
+    http_method_names = ['POST']
 
 class ApiUpdateMethod(utils.ApiMethod):
-    http_method_names = ['patch']
+    http_method_names = ['PATCH']
 
 class ApiDeleteMethod(utils.ApiMethod):
-    http_method_names = ['delete']
+    http_method_names = ['DELETE']
 
 class ApiDirectory(object):
 
