@@ -2,8 +2,8 @@ import httplib
 
 class BaseErrors(object):
     UNKNOWN = (1,'An unknown error occurred',httplib.INTERNAL_SERVER_ERROR)
-    HTTP_METHOD = (2,'Invalid HTTP method',httplib.METHOD_NOT_ALLOWED)
     API_METHOD = (2,'Unknown API method',httplib.BAD_REQUEST)
+    HTTP_METHOD = (3,'Invalid HTTP method',httplib.METHOD_NOT_ALLOWED)
 
 class ParameterErrors(object):
     PARAM = (100,'Invalid parameter',httplib.BAD_REQUEST)

@@ -9,14 +9,14 @@ import functools
 from django import http
 from django.conf import settings
 
-from . import errors
+from apy.methods.errors import Errors
 
 class ApiMethodMetaClass(type):
     creation_counter = 0
     def __new__(cls, name, bases, attrs):
-        if name!='ApiMethod':
-            if not attrs['name']: raise Exception('subclass needs a "name" field')
-            if not attrs['url_pattern']: raise Exception('subclass needs a "url_pattern" field')
+        # if name!='ApiMethod':
+        #     if not attrs['name']: raise Exception('subclass needs a "name" field')
+        #     if not attrs['url_pattern']: raise Exception('subclass needs a "url_pattern" field')
         attrs['class_creation_counter'] = ApiMethodMetaClass.creation_counter
         ApiMethodMetaClass.creation_counter += 1
         new_class = super(ApiMethodMetaClass,cls).__new__(cls, name, bases, attrs)
@@ -31,6 +31,7 @@ class ApiMethod(object):
     __metaclass__ = ApiMethodMetaClass
 
     http_method_names = ['get','post','patch','delete']
+    errors = getattr(settings,'apy_errors',Errors)
 
     InputForm = None
 
@@ -52,7 +53,6 @@ class ApiMethod(object):
         self.args = None
         self.kwargs = None
         self.data = None
-        self.errors = getattr(settings,'apy_errors',errors.Errors)
 
     @classmethod
     def as_view(cls, **initkwargs):
@@ -86,7 +86,7 @@ class ApiMethod(object):
         # defer to the error handler. Also defer to the error handler if the
         # request method isn't on the approved list.
         method = request.method.lower()
-        if method not in self.http_method_names or not hasattr(self, method):
+        if method not in self.http_method_names:
             return self.http_method_not_allowed()
         self.request = request
         self.args = args
@@ -101,15 +101,16 @@ class ApiMethod(object):
         response, http_status_code = self.get_response()
         return self.return_response(response, http_status_code)
 
-    def internal_dispatch(self, request, dirty_data):
+    @classmethod
+    def internal_dispatch(cls, request, dirty_data):
+        self = cls()
         self.request = request
         self.data = self.clean_data(dirty_data)
         response, _ = self.get_response()
         return response
 
     def http_method_not_allowed(self):
-        allowed_methods = [m for m in self.http_method_names if hasattr(self, m)]
-        message = 'Only %s allowed for this API method'%','.join(allowed_methods)
+        message = 'Only %s allowed for this API method'%','.join(self.http_method_names)
         response, http_status_code = self.error_response(self.errors.HTTP_METHOD,[message])
         return self.return_response(response, http_status_code)
 
@@ -185,21 +186,6 @@ class ApiMethod(object):
 url_pattern_re = re.compile('\(\?P<([^>]+)>[^()]+\)')
 def url_pattern_repl(x):
     return '<i>:%s</i>'%x.group(1)
-
-
-
-class ApiReadMethod(ApiMethod):
-    http_method_names = ['get']
-
-class ApiCreateMethod(ApiMethod):
-    http_method_names = ['post']
-
-class ApiUpdateMethod(ApiMethod):
-    http_method_names = ['patch']
-
-class ApiDeleteMethod(ApiMethod):
-    http_method_names = ['delete']
-
 
 class AccessForbiddenError(Exception):
     pass
