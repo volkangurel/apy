@@ -167,7 +167,7 @@ class ApiMethod(object):
                 d['limit'] = min(self.data['limit'],self.data['offset']-d['offset'])
                 response['pagination']['prev'] = self.request.build_absolute_uri(self.request.path+'?'+urllib.urlencode(d))
 
-        response_format = self.data and self.data.get('response_format') or self.default_response_format
+        response_format = self.data and self.data.get('format') or self.default_response_format
         if response_format not in ['json']: response_format = 'json' # TODO add support for xml
         if response_format=='json':
             formatted_response = json.dumps(response)
