@@ -64,14 +64,13 @@ class ApiModelPermissions(object):
         return self
 
     def update_with_other(self,other):
-        self.update(other.read,other.update,other.create,other.delete)
+        self.update(other.read_permissions,other.update_permissions,other.create_permissions,other.delete_permissions)
 
-    def update(self,read_permissions=None,update_permissions=None,
-               create_permissions=None,delete_permissions=None):
-        if read_permissions: self.read_permissions.update(read_permissions)
-        if update_permissions: self.update_permissions.update(update_permissions)
-        if create_permissions: self.create_permissions = create_permissions
-        if delete_permissions: self.delete_permissions = delete_permissions
+    def update(self,read=None,update=None,create=None,delete=None):
+        if read: self.read_permissions.update(read)
+        if update: self.update_permissions.update(update)
+        if create: self.create_permissions = create
+        if delete: self.delete_permissions = delete
 
     def add(self,read_permissions=None,update_permissions=None,
             create_permissions=None,delete_permissions=None):
