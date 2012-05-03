@@ -132,6 +132,10 @@ class BaseApiModel(object):
         # TODO: validate fields
 
     @classmethod
+    def pre_delete(cls, request, fields):
+        cls.permissions.check_delete_fields(request,fields)
+
+    @classmethod
     def validate_fields(cls,fields):
         for k,v in fields.items():
             if k not in cls.base_fields:
