@@ -85,16 +85,12 @@ class ApiModelPermissions(object):
 
     def check_read_fields(self,request,fields):
         p = request.user.get_permissions(request, self.object)
-        if p.get('superuser'): return fields # superusers have access to everything
-
         _fields = []
-
         user_roles = set(p['roles']) if 'roles' in p else set()
-        if user_roles.get('superuser'): return fields # superusers have access to everything
+        if 'superuser' in user_roles: return fields # superusers have access to everything
         for k,v in fields:
             valid_roles = self.read_permissions.get(k) or self.read_permissions.get('*',set())
             if 'public' in valid_roles or user_roles&valid_roles: _fields.append((k,v))
-
         return _fields
 
     def check_update_fields(self,request,fields):
