@@ -89,7 +89,7 @@ class ApiModelPermissions(object):
         user_roles = set(p['roles']) if 'roles' in p else set()
         if 'superuser' in user_roles: return fields # superusers have access to everything
         for k,v in fields:
-            valid_roles = self.read_permissions.get(k) or self.read_permissions.get('*',set())
+            valid_roles = self.read_permissions.get(k,set()) | self.read_permissions.get('*',set())
             if 'public' in valid_roles or user_roles&valid_roles: _fields.append((k,v))
         return _fields
 
@@ -110,8 +110,6 @@ class BaseApiModel(object):
     base_fields = None
     class_creation_counter = None
     is_hidden = False
-
-    doc_type = None
 
     def __init__(self,*args,**kwargs):
         super(BaseApiModel,self).__init__(*args,**kwargs)
