@@ -30,7 +30,7 @@ class ApiMethod(object):
     #pylint: disable=E1102,W0141
     __metaclass__ = ApiMethodMetaClass
 
-    http_method_names = ['GET','POST','PATCH','DELETE']
+    http_method_names = ['GET','POST','PUT','DELETE']
     errors = getattr(settings,'apy_errors',Errors)
 
     InputForm = None
@@ -138,11 +138,24 @@ class ApiMethod(object):
     ######################################
     def get_data_from_request(self):
         data = {}
-        for k,v in self.request.REQUEST.iteritems():
-            if k.endswith('[]'): k = k[:-2]
-            data[k] = v
+        if self.request.method=='GET':
+            self._add_querydict_to_data(self.request.GET,data)
+        elif self.request.method=='POST':
+            self._add_querydict_to_data(self.request.POST,data)
+        elif self.request.method=='PUT':
+            put_querydict = self.request.parse_file_upload(self.request.META, self.request)[0]
+            self._add_querydict_to_data(put_querydict,data)
+        elif self.request.method=='DELETE':
+            delete_querydict = self.request.parse_file_upload(self.request.META, self.request)[0]
+            self._add_querydict_to_data(delete_querydict,data)
+        # add kwargs from url path
         if self.kwargs: data.update(self.kwargs)
         return data
+
+    def _add_querydict_to_data(self,query_dict,data):
+        for k,v in query_dict.iteritems():
+            if k.endswith('[]'): k = k[:-2]
+            data[k] = v
 
     def clean_data(self,dirty_data):
         if self.InputForm:

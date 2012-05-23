@@ -12,7 +12,7 @@ class ApiCreateMethod(utils.ApiMethod):
     http_method_names = ['POST']
 
 class ApiUpdateMethod(utils.ApiMethod):
-    http_method_names = ['PATCH']
+    http_method_names = ['PUT']
 
 class ApiDeleteMethod(utils.ApiMethod):
     http_method_names = ['DELETE']
