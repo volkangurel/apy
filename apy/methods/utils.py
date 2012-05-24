@@ -115,9 +115,10 @@ class ApiMethod(object):
         return self.return_response(response, http_status_code)
 
     ######################################
-    def ok_response(self, response=None, warnings=None, http_code=httplib.OK):
-        if not response: response = {}
+    def ok_response(self, data=None, warnings=None, http_code=httplib.OK):
+        response = {}
         response['ok'] = True
+        if data: response['data'] = data
         if warnings: response['warnings'] = warnings
         return response, http_code
 
