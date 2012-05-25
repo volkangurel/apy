@@ -55,7 +55,7 @@ class ArrayField(BaseField):
             self.validators.append(validators.MaxLengthValidator(max_length))
 
     def clean(self, value):
-        if not type(value)==list: return []
+        if not isinstance(value,list): return []
         value = super(ArrayField,self).clean(value)
         value = [self.child_field.clean(v) for v in value]
         return value

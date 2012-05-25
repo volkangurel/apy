@@ -20,8 +20,8 @@ class BaseField(object):
         BaseField.creation_counter += 1
 
     def validate(self,key,value,model):
-        if type(value) not in self.python_classes:
-            raise ValidationError("invalid type '%s' for field '%s' in model '%s', has to be %s"%(type(value).__name__,key,model,' or '.join("'%s'"%c.__name__ for c in self.python_classes)))
+        if not any(isinstance(value,c) for c in self.python_classes):
+            raise ValidationError("invalid type '%s' for field '%s' in model '%s', has to be an instance of %s"%(type(value).__name__,key,model,' or '.join("'%s'"%c.__name__ for c in self.python_classes)))
         if self.child_field:
             self.child_field.validate(value)
 

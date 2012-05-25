@@ -4,7 +4,7 @@ class ErrorsMetaClass(type):
     def __new__(cls, name, bases, attrs):
         nattrs = {}
         for k,v in attrs.iteritems():
-            if type(v)==tuple:
+            if isinstance(v,tuple):
                 nattrs[k] = {'name':k.lower(),'desc':v[0],'http_code':v[1]}
             else:
                 nattrs[k] = v

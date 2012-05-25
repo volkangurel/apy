@@ -5,6 +5,8 @@ import urlparse
 import httplib
 import json
 import functools
+import datetime
+import decimal
 
 from django import http
 from django.conf import settings
@@ -184,7 +186,7 @@ class ApiMethod(object):
         response_format = self.data and self.data.get('format') or self.default_response_format
         if response_format not in ['json']: response_format = 'json' # TODO add support for xml
         if response_format=='json':
-            formatted_response = json.dumps(response)
+            formatted_response = json.dumps(response,cls=ApyJSONEncoder)
             mimetype='application/json'
             callback = self.data and self.data.get('callback')
             if callback:
@@ -206,6 +208,15 @@ class ApiMethod(object):
 url_pattern_re = re.compile('\(\?P<([^>]+)>[^()]+\)')
 def url_pattern_repl(x):
     return '<i>:%s</i>'%x.group(1)
+
+class ApyJSONEncoder(json.JSONEncoder):
+    def default(self,obj): # pylint: disable=E0202
+        if isinstance(obj,datetime.datetime):
+            return obj.isoformat()
+        elif isinstance(obj,decimal.Decimal):
+            return float(obj)
+        else:
+            return super(ApyJSONEncoder,self).default(obj)
 
 class AccessForbiddenError(Exception):
     pass
