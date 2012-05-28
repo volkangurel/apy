@@ -43,7 +43,7 @@ class StringField(BaseField, forms.CharField):
     json_type = 'string'
 
 class ArrayField(BaseField):
-    field_type = 'array'
+    json_type = 'array'
 
     def __init__(self, child_field, max_length=None, min_length=None, **kwargs):
         self.child_field = child_field

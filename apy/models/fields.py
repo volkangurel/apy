@@ -60,7 +60,10 @@ class ObjectField(BaseField):
     python_classes = (dict,)
 
     def get_json_value(self,request,value):
-        return {k:self.child_field[k].get_json_value(request,v) for k,v in value.iteritems()}
+        if self.child_field:
+            return {k:self.child_field[k].get_json_value(request,v) for k,v in value.iteritems()}
+        else:
+            return value
 
 class TimeField(BaseField):
     json_type = 'string'
