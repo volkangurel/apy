@@ -54,6 +54,7 @@ class ApiMethod(object):
         self.request = None
         self.args = None
         self.kwargs = None
+        self.dirty_data = None
         self.data = None
 
     @classmethod
@@ -94,7 +95,8 @@ class ApiMethod(object):
         self.args = args
         self.kwargs = kwargs
         try:
-            self.data = self.clean_data(self.get_data_from_request())
+            self.dirty_data = self.get_data_from_request()
+            self.data = self.clean_data(self.dirty_data)
         except InvalidFormError, e:
             messages = [f + ": " + ". ".join(map(unicode,v)) for f, v in e.form.errors.items()]
             response, http_status_code = self.error_response(self.errors.INVALID_PARAM,messages)
@@ -107,7 +109,8 @@ class ApiMethod(object):
     def internal_dispatch(cls, request, dirty_data):
         self = cls()
         self.request = request
-        self.data = self.clean_data(dirty_data)
+        self.dirty_data = dirty_data
+        self.data = self.clean_data(self.dirty_data)
         response, _ = self.get_response()
         return response
 
@@ -130,6 +133,8 @@ class ApiMethod(object):
         return d, error['http_code']
 
     def get_response(self):
+        if 'language' in self.dirty_data:
+            self.request.language = self.dirty_data['language']
         try:
             response, http_status_code = self.process()
         except AccessForbiddenError:

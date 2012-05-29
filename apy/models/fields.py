@@ -60,8 +60,11 @@ class ObjectField(BaseField):
     python_classes = (dict,)
 
     def get_json_value(self,request,value):
-        if self.child_field:
+        if isinstance(self.child_field,dict):
             return {k:self.child_field[k].get_json_value(request,v) for k,v in value.iteritems()}
+        elif isinstance(self.child_field,tuple) and len(self.child_field)==2:
+            return {self.child_field[0].get_json_value(request,k):self.child_field[1].get_json_value(request,v)
+                    for k,v in value.iteritems()}
         else:
             return value
 
