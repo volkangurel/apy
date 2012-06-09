@@ -1,4 +1,4 @@
-import time
+import datetime
 
 class BaseField(object):
 
@@ -39,6 +39,7 @@ class LongField(BaseField):
     python_classes = (int,long,)
 
     def get_json_value(self,request,value):
+        if not value: return None
         return unicode(value)
 
 class StringField(BaseField):
@@ -52,6 +53,7 @@ class ArrayField(BaseField):
     python_classes = (list,tuple,)
 
     def get_json_value(self,request,value):
+        if not value: return []
         return [self.child_field.get_json_value(request,v) for v in value] if self.child_field else value
 
 class ObjectField(BaseField):
@@ -74,7 +76,17 @@ class TimeField(BaseField):
     python_classes = (float,)
 
     def get_json_value(self,request,value):
-        return time.strftime("%Y-%m-%d %H:%M:%S",time.gmtime(value))
+        if not value: return None
+        return datetime.datetime.fromtimestamp(value).isoformat()
+
+class DateTimeField(BaseField):
+    json_type = 'string'
+
+    python_classes = (datetime.datetime,)
+
+    def get_json_value(self,request,value):
+        if not value: return None
+        return value.isoformat()
 
 class LinkField(ArrayField):
     def __init__(self,**kwargs):
