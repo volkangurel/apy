@@ -88,7 +88,7 @@ class DateTimeField(BaseField):
         if not value: return None
         return value.isoformat()
 
-class LinkField(ArrayField):
+class LinkField(BaseField):
     def __init__(self,**kwargs):
         link_method = kwargs.pop('link_method')
         kwargs['field_type'] = 'l'
