@@ -6,17 +6,17 @@ from apy.forms import fields
 
 class ApiFormMetaclass(type):
     def __new__(cls, name, bases, attrs):
-        form_fields = [(field_name, attrs.pop(field_name)) for field_name, obj in attrs.items() if isinstance(obj, fields.BaseField)]
+        form_fields = [(field_name, attrs.pop(field_name)) for field_name, obj in list(attrs.items()) if isinstance(obj, fields.BaseField)]
         form_fields.sort(key=lambda x: x[1].creation_counter)
         for base in bases[::-1]:
             if hasattr(base, 'base_fields'):
-                form_fields = base.base_fields.items() + form_fields
+                form_fields = list(base.base_fields.items()) + form_fields
         attrs['base_fields'] = collections.OrderedDict(form_fields)
         new_class = super(ApiFormMetaclass,cls).__new__(cls, name, bases, attrs)
         return new_class
 
-class ApiForm(forms.BaseForm):
-    __metaclass__ = ApiFormMetaclass
+class ApiForm(forms.BaseForm, metaclass=ApiFormMetaclass):
+    pass
 
 
 # helper forms

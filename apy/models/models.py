@@ -4,12 +4,12 @@ from apy.models import fields as apy_fields
 
 ### model metaclass
 def get_declared_fields(bases, attrs):
-    model_fields = [(field_name, attrs.pop(field_name)) for field_name, obj in attrs.items() if isinstance(obj, apy_fields.BaseField)]
+    model_fields = [(field_name, attrs.pop(field_name)) for field_name, obj in list(attrs.items()) if isinstance(obj, apy_fields.BaseField)]
     model_fields.sort(key=lambda x: x[1].creation_counter)
 
     for base in bases[::-1]:
         if hasattr(base, 'base_fields'):
-            model_fields = base.base_fields.items() + model_fields
+            model_fields = list(base.base_fields.items()) + model_fields
 
     return collections.OrderedDict(model_fields)
 
@@ -75,10 +75,10 @@ class ApiModelPermissions(object):
     def add(self,read_permissions=None,update_permissions=None,
             create_permissions=None,delete_permissions=None):
         if read_permissions:
-            for k,v in read_permissions.iteritems():
+            for k,v in read_permissions.items():
                 self.read_permissions[k].update(v)
         if update_permissions:
-            for k,v in update_permissions.iteritems():
+            for k,v in update_permissions.items():
                 self.update[k].update(v)
         if create_permissions: self.create_permissions.update(create_permissions)
         if delete_permissions: self.delete_permissions.update(delete_permissions)
@@ -104,9 +104,7 @@ class ApiModelPermissions(object):
         return False
 
 
-class BaseApiModel(object):
-    __metaclass__ = ApiModelMetaClass
-
+class BaseApiModel(object, metaclass=ApiModelMetaClass):
     base_fields = None
     class_creation_counter = None
     is_hidden = False
@@ -130,18 +128,18 @@ class BaseApiModel(object):
 
     @classmethod
     def validate_fields(cls,fields):
-        for k,v in fields.items():
+        for k,v in list(fields.items()):
             if k not in cls.base_fields:
                 raise apy_fields.ValidationError("invalid key '%s' for model '%s'"%(k,cls.__name__))
             cls.base_fields[k].validate(k,v,cls.__name__)
 
     @classmethod
     def get_selectable_fields(cls):
-        return {k:v for k,v in cls.base_fields.iteritems() if v.is_selectable}
+        return {k:v for k,v in cls.base_fields.items() if v.is_selectable}
 
     @classmethod
     def get_default_fields(cls):
-        return [(k,v) for k,v in cls.base_fields.iteritems() if v.is_default]
+        return [(k,v) for k,v in cls.base_fields.items() if v.is_default]
 
     @classmethod
     def get_fields(cls,keys):

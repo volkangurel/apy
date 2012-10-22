@@ -1,8 +1,8 @@
 import re
 import collections
-import urllib
-import urlparse
-import httplib
+import urllib.request, urllib.parse, urllib.error
+import urllib.parse
+import http.client
 import json
 import functools
 import datetime
@@ -24,13 +24,11 @@ class ApiMethodMetaClass(type):
         new_class = super(ApiMethodMetaClass,cls).__new__(cls, name, bases, attrs)
         return new_class
 
-class ApiMethod(object):
+class ApiMethod(object, metaclass=ApiMethodMetaClass):
     """
     View class based off of django.views.generic.View, main difference is dispatch doesn't
     pass request, args and kwargs to methods, since they are already attributes of class instance
     """
-    #pylint: disable=E1102,W0141
-    __metaclass__ = ApiMethodMetaClass
 
     http_method_names = ['GET','POST','PUT','DELETE']
     errors = getattr(settings,'apy_errors',Errors)
@@ -49,7 +47,7 @@ class ApiMethod(object):
         """
         # Go through keyword arguments, and either save their values to our
         # instance, or raise an error.
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             setattr(self, key, value)
         self.request = None
         self.args = None
@@ -65,11 +63,11 @@ class ApiMethod(object):
         # sanitize keyword arguments
         for key in initkwargs:
             if key in cls.http_method_names:
-                raise TypeError(u"You tried to pass in the %s method name as a "
-                                u"keyword argument to %s(). Don't do that."
+                raise TypeError("You tried to pass in the %s method name as a "
+                                "keyword argument to %s(). Don't do that."
                                 % (key, cls.__name__))
             if not hasattr(cls, key):
-                raise TypeError(u"%s() received an invalid keyword %r" % (
+                raise TypeError("%s() received an invalid keyword %r" % (
                     cls.__name__, key))
 
         def view(request, *args, **kwargs):
@@ -97,8 +95,8 @@ class ApiMethod(object):
         try:
             self.dirty_data = self.get_data_from_request()
             self.data = self.clean_data(self.dirty_data)
-        except InvalidFormError, e:
-            messages = [f + ": " + ". ".join(map(unicode,v)) for f, v in e.form.errors.items()]
+        except InvalidFormError as e:
+            messages = [f + ": " + ". ".join(map(str,v)) for f, v in list(e.form.errors.items())]
             response, http_status_code = self.error_response(self.errors.INVALID_PARAM,messages)
             return self.return_response(response, http_status_code)
 
@@ -120,7 +118,7 @@ class ApiMethod(object):
         return self.return_response(response, http_status_code)
 
     ######################################
-    def ok_response(self, data=None, warnings=None, http_code=httplib.OK):
+    def ok_response(self, data=None, warnings=None, http_code=http.client.OK):
         response = {}
         response['ok'] = True
         if data: response['data'] = data
@@ -161,7 +159,7 @@ class ApiMethod(object):
         return data
 
     def _add_querydict_to_data(self,query_dict,data):
-        for k,v in query_dict.iteritems():
+        for k,v in query_dict.items():
             if k.endswith('[]'): k = k[:-2]
             data[k] = v
 
@@ -179,14 +177,14 @@ class ApiMethod(object):
         # add pagination to requests with limit and offset
         if self.data and self.data.get('limit') is not None and self.data.get('offset') is not None:
             response['pagination'] = {}
-            d = collections.OrderedDict(urlparse.parse_qsl(self.request.META['QUERY_STRING']) if self.request.META.get('QUERY_STRING') else [])
+            d = collections.OrderedDict(urllib.parse.parse_qsl(self.request.META['QUERY_STRING']) if self.request.META.get('QUERY_STRING') else [])
             d['offset'] = self.data['offset']+self.data['limit']
             d['limit'] = self.data['limit']
-            response['pagination']['next'] = self.request.build_absolute_uri(self.request.path+'?'+urllib.urlencode(d))
+            response['pagination']['next'] = self.request.build_absolute_uri(self.request.path+'?'+urllib.parse.urlencode(d))
             if self.data['offset']>0:
                 d['offset'] = max(self.data['offset']-self.data['limit'],0)
                 d['limit'] = min(self.data['limit'],self.data['offset']-d['offset'])
-                response['pagination']['prev'] = self.request.build_absolute_uri(self.request.path+'?'+urllib.urlencode(d))
+                response['pagination']['prev'] = self.request.build_absolute_uri(self.request.path+'?'+urllib.parse.urlencode(d))
 
         response_format = self.data and self.data.get('format') or self.default_response_format
         if response_format not in ['json']: response_format = 'json' # TODO add support for xml

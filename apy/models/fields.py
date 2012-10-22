@@ -31,21 +31,21 @@ class BaseField(object):
 class IntegerField(BaseField):
     json_type = 'integer'
 
-    python_classes = (int,long,)
+    python_classes = (int,)
 
 class LongField(BaseField):
     json_type = 'string'
 
-    python_classes = (int,long,)
+    python_classes = (int,)
 
     def get_json_value(self,request,value):
         if not value: return None
-        return unicode(value)
+        return str(value)
 
 class StringField(BaseField):
     json_type = 'string'
 
-    python_classes = (unicode,)
+    python_classes = (str,)
 
 class ArrayField(BaseField):
     json_type = 'array'
@@ -63,10 +63,10 @@ class ObjectField(BaseField):
 
     def get_json_value(self,request,value):
         if isinstance(self.child_field,dict):
-            return {k:self.child_field[k].get_json_value(request,v) for k,v in value.iteritems()}
+            return {k:self.child_field[k].get_json_value(request,v) for k,v in value.items()}
         elif isinstance(self.child_field,tuple) and len(self.child_field)==2:
             return {self.child_field[0].get_json_value(request,k):self.child_field[1].get_json_value(request,v)
-                    for k,v in value.iteritems()}
+                    for k,v in value.items()}
         else:
             return value
 
