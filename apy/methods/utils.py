@@ -1,14 +1,13 @@
 import re
 import collections
 import urllib.request, urllib.parse, urllib.error
-import urllib.parse
 import http.client
 import json
 import functools
 import datetime
 import decimal
 
-from django import http
+from django import http as django_http
 from django.conf import settings
 
 from apy.methods.errors import Errors
@@ -196,7 +195,7 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
                 formatted_response = '%s(%s)'%(callback,formatted_response)
                 mimetype = 'text/javascript'
 
-        return http.HttpResponse(formatted_response, status=http_status_code, mimetype=mimetype)
+        return django_http.HttpResponse(formatted_response, status=http_status_code, mimetype=mimetype)
 
     ######################################
     def process(self):
