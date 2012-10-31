@@ -86,7 +86,7 @@ class DateTimeField(BaseField):
 
     def get_json_value(self,request,value):
         if not value: return None
-        return value.isoformat()
+        return value.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
 
 class LinkField(BaseField):
     def __init__(self,**kwargs):

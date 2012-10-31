@@ -120,7 +120,7 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
     def ok_response(self, data=None, warnings=None, http_code=http.client.OK):
         response = {}
         response['ok'] = True
-        if data: response['data'] = data
+        if data is not None: response['data'] = data
         if warnings: response['warnings'] = warnings
         return response, http_code
 
@@ -225,5 +225,5 @@ class AccessForbiddenError(Exception):
 
 class InvalidFormError(Exception):
     def __init__(self,form):
-        super(InvalidFormError,self).__init__(self)
+        Exception.__init__(self)
         self.form = form
