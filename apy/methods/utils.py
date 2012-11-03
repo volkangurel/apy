@@ -132,6 +132,8 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
     def get_response(self):
         if 'language' in self.dirty_data:
             self.request.language = self.dirty_data['language']
+        if 'timezone' in self.dirty_data:
+            self.request.timezone = self.dirty_data['timezone']
         try:
             response, http_status_code = self.process()
         except AccessForbiddenError:
