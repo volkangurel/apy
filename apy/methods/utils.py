@@ -9,6 +9,7 @@ import decimal
 
 from django import http as django_http
 from django.conf import settings
+from django.utils import importlib
 
 from apy.methods.errors import Errors
 
@@ -23,6 +24,16 @@ class ApiMethodMetaClass(type):
         new_class = super(ApiMethodMetaClass,cls).__new__(cls, name, bases, attrs)
         return new_class
 
+def import_errors(cls_path):
+    module_path, cls_name = cls_path.rsplit('.',1)
+    try:
+        module = importlib.import_module(module_path)
+    except ImportError:
+        raise Exception('invalid module: "%s"'%module_path)
+    if not hasattr(module,cls_name):
+        raise Exception('module "%s" doesn\'t have class "%s"'%(module_path,cls_name))
+    return getattr(module,cls_name)
+
 class ApiMethod(object, metaclass=ApiMethodMetaClass):
     """
     View class based off of django.views.generic.View, main difference is dispatch doesn't
@@ -30,7 +41,7 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
     """
 
     http_method_names = ['GET','POST','PUT','DELETE']
-    errors = getattr(settings,'apy_errors',Errors)
+    errors = import_errors(getattr(settings,'APY_ERRORS')) if hasattr(settings,'APY_ERRORS') else Errors
 
     InputForm = None
 
