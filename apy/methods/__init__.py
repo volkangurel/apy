@@ -43,13 +43,7 @@ class ApiDirectory(object):
 
     @property
     def urlpatterns(self):
-        return patterns(
-            '',
-            # url('^$',views.Index.as_view()),
-            # url('^/docs$',views.Docs.as_view(),name='api-docs'),
-            # url('^/objects$',views.objects,name='api-objects'),
-            *self.urls
-            )
+        return patterns('',*self.urls)
 
     def internal_call(self,request,method_name,dirty_data):
         dirty_data = dirty_data.copy()
