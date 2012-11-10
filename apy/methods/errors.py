@@ -27,4 +27,4 @@ class ResourceErrors(BaseErrors):
 class AuthErrors(BaseErrors):
     FORBIDDEN = ('Forbidden',http.client.FORBIDDEN)
 
-class Errors(GeneralErrors,ParameterErrors,ResourceErrors): pass
+class Errors(GeneralErrors,ParameterErrors,ResourceErrors,AuthErrors): pass
