@@ -1,6 +1,8 @@
 import re
 import collections
-import urllib.request, urllib.parse, urllib.error
+import urllib.request
+import urllib.parse
+import urllib.error
 import http.client
 import json
 import functools
@@ -13,26 +15,30 @@ from django.utils import importlib
 
 from apy.methods.errors import Errors
 
+
 class ApiMethodMetaClass(type):
     creation_counter = 0
+
     def __new__(cls, name, bases, attrs):
         # if name!='ApiMethod':
         #     if not attrs['name']: raise Exception('subclass needs a "name" field')
         #     if not attrs['url_pattern']: raise Exception('subclass needs a "url_pattern" field')
         attrs['class_creation_counter'] = ApiMethodMetaClass.creation_counter
         ApiMethodMetaClass.creation_counter += 1
-        new_class = super(ApiMethodMetaClass,cls).__new__(cls, name, bases, attrs)
+        new_class = super(ApiMethodMetaClass, cls).__new__(cls, name, bases, attrs)
         return new_class
 
+
 def import_errors(cls_path):
-    module_path, cls_name = cls_path.rsplit('.',1)
+    module_path, cls_name = cls_path.rsplit('.', 1)
     try:
         module = importlib.import_module(module_path)
     except ImportError:
-        raise Exception('invalid module: "%s"'%module_path)
-    if not hasattr(module,cls_name):
-        raise Exception('module "%s" doesn\'t have class "%s"'%(module_path,cls_name))
-    return getattr(module,cls_name)
+        raise Exception('invalid module: "%s"' % module_path)
+    if not hasattr(module, cls_name):
+        raise Exception('module "%s" doesn\'t have class "%s"' % (module_path, cls_name))
+    return getattr(module, cls_name)
+
 
 class ApiMethod(object, metaclass=ApiMethodMetaClass):
     """
@@ -40,8 +46,8 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
     pass request, args and kwargs to methods, since they are already attributes of class instance
     """
 
-    http_method_names = ['GET','POST','PUT','DELETE']
-    errors = import_errors(getattr(settings,'APY_ERRORS')) if hasattr(settings,'APY_ERRORS') else Errors
+    http_method_names = ['GET', 'POST', 'PUT', 'DELETE']
+    errors = import_errors(getattr(settings, 'APY_ERRORS')) if hasattr(settings, 'APY_ERRORS') else Errors
 
     InputForm = None
 
@@ -81,7 +87,7 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
                     cls.__name__, key))
 
         def view(request, *args, **kwargs):
-            self = cls(**initkwargs) #pylint: disable=W0142
+            self = cls(**initkwargs)  # pylint: disable=W0142
             return self.dispatch(request, *args, **kwargs)
 
         # take name and docstring from class
@@ -106,8 +112,8 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
             self.dirty_data = self.get_data_from_request()
             self.data = self.clean_data(self.dirty_data)
         except InvalidFormError as e:
-            messages = [f + ": " + ". ".join(map(str,v)) for f, v in list(e.form.errors.items())]
-            response, http_status_code = self.error_response(self.errors.INVALID_PARAM,messages)
+            messages = [f + ": " + ". ".join(map(str, v)) for f, v in list(e.form.errors.items())]
+            response, http_status_code = self.error_response(self.errors.INVALID_PARAM, messages)
             return self.return_response(response, http_status_code)
 
         response, http_status_code = self.get_response()
@@ -123,21 +129,24 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
         return response
 
     def http_method_not_allowed(self):
-        message = 'Only %s calls allowed for this API method'%(','.join(self.http_method_names))
-        response, http_status_code = self.error_response(self.errors.INVALID_HTTP_METHOD,[message])
+        message = 'Only %s calls allowed for this API method' % (','.join(self.http_method_names))
+        response, http_status_code = self.error_response(self.errors.INVALID_HTTP_METHOD, [message])
         return self.return_response(response, http_status_code)
 
     ######################################
     def ok_response(self, data=None, warnings=None, http_code=http.client.OK):
         response = {}
         response['ok'] = True
-        if data is not None: response['data'] = data
-        if warnings: response['warnings'] = warnings
+        if data is not None:
+            response['data'] = data
+        if warnings:
+            response['warnings'] = warnings
         return response, http_code
 
     def error_response(self, error, messages=None):
         d = {'ok': False, 'error': error['name']}
-        if messages: d['error_messages'] = messages
+        if messages:
+            d['error_messages'] = messages
         return d, error['http_code']
 
     def get_response(self):
@@ -156,30 +165,35 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
     ######################################
     def get_data_from_request(self):
         data = {}
-        if self.request.method=='GET':
-            self._add_querydict_to_data(self.request.GET,data)
-        elif self.request.method=='POST':
-            self._add_querydict_to_data(self.request.POST,data)
-        elif self.request.method=='PUT':
+        if self.request.method == 'GET':
+            self._add_querydict_to_data(self.request.GET, data)
+        elif self.request.method == 'POST':
+            self._add_querydict_to_data(self.request.POST, data)
+        elif self.request.method == 'PUT':
             put_querydict = self.request.parse_file_upload(self.request.META, self.request)[0]
-            self._add_querydict_to_data(put_querydict,data)
-        elif self.request.method=='DELETE':
+            self._add_querydict_to_data(put_querydict, data)
+        elif self.request.method == 'DELETE':
             delete_querydict = self.request.parse_file_upload(self.request.META, self.request)[0]
-            self._add_querydict_to_data(delete_querydict,data)
+            self._add_querydict_to_data(delete_querydict, data)
         # add kwargs from url path
-        if self.kwargs: data.update(self.kwargs)
+        if self.kwargs:
+            data.update(self.kwargs)
         return data
 
-    def _add_querydict_to_data(self,query_dict,data):
-        for k,v in query_dict.items():
-            if k.endswith('[]'): k = k[:-2]
+    def _add_querydict_to_data(self, query_dict, data):
+        for k, v in query_dict.items():
+            if k.endswith('[]'):
+                k = k[:-2]
             data[k] = v
 
-    def clean_data(self,dirty_data):
+    def clean_data(self, dirty_data):
         if self.InputForm:
-            if getattr(self.request,'FILES',False): f = self.InputForm(dirty_data, self.request.FILES)
-            else: f = self.InputForm(dirty_data)
-            if not f.is_valid(): raise InvalidFormError(f)
+            if getattr(self.request, 'FILES', False):
+                f = self.InputForm(dirty_data, self.request.FILES)
+            else:
+                f = self.InputForm(dirty_data)
+            if not f.is_valid():
+                raise InvalidFormError(f)
             cleaned_data = f.cleaned_data
         else:
             cleaned_data = {}
@@ -190,22 +204,23 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
         if self.data and self.data.get('limit') is not None and self.data.get('offset') is not None:
             response['pagination'] = {}
             d = collections.OrderedDict(urllib.parse.parse_qsl(self.request.META['QUERY_STRING']) if self.request.META.get('QUERY_STRING') else [])
-            d['offset'] = self.data['offset']+self.data['limit']
+            d['offset'] = self.data['offset'] + self.data['limit']
             d['limit'] = self.data['limit']
-            response['pagination']['next'] = self.request.build_absolute_uri(self.request.path+'?'+urllib.parse.urlencode(d))
-            if self.data['offset']>0:
-                d['offset'] = max(self.data['offset']-self.data['limit'],0)
-                d['limit'] = min(self.data['limit'],self.data['offset']-d['offset'])
-                response['pagination']['prev'] = self.request.build_absolute_uri(self.request.path+'?'+urllib.parse.urlencode(d))
+            response['pagination']['next'] = self.request.build_absolute_uri(self.request.path + '?' + urllib.parse.urlencode(d))
+            if self.data['offset'] > 0:
+                d['offset'] = max(self.data['offset'] - self.data['limit'], 0)
+                d['limit'] = min(self.data['limit'], self.data['offset'] - d['offset'])
+                response['pagination']['prev'] = self.request.build_absolute_uri(self.request.path + '?' + urllib.parse.urlencode(d))
 
         response_format = self.data and self.data.get('format') or self.default_response_format
-        if response_format not in ['json']: response_format = 'json' # TODO add support for xml
-        if response_format=='json':
-            formatted_response = json.dumps(response,cls=ApyJSONEncoder)
-            mimetype='application/json'
+        if response_format not in ['json']:
+            response_format = 'json'  # TODO add support for xml
+        if response_format == 'json':
+            formatted_response = json.dumps(response, cls=ApyJSONEncoder)
+            mimetype = 'application/json'
             callback = self.data and self.data.get('callback')
             if callback:
-                formatted_response = '%s(%s)'%(callback,formatted_response)
+                formatted_response = '%s(%s)' % (callback, formatted_response)
                 mimetype = 'text/javascript'
 
         return django_http.HttpResponse(formatted_response, status=http_status_code, mimetype=mimetype)
@@ -218,25 +233,30 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
     ######################################
     @property
     def url_doc(self):
-        return url_pattern_re.sub(url_pattern_repl,self.url_pattern)
+        return url_pattern_re.sub(url_pattern_repl, self.url_pattern)
 
 url_pattern_re = re.compile('\(\?P<([^>]+)>[^()]+\)')
+
+
 def url_pattern_repl(x):
-    return '<i>:%s</i>'%x.group(1)
+    return '<i>:%s</i>' % x.group(1)
+
 
 class ApyJSONEncoder(json.JSONEncoder):
-    def default(self,obj): # pylint: disable=E0202
-        if isinstance(obj,datetime.datetime):
+    def default(self, obj):  # pylint: disable=E0202
+        if isinstance(obj, datetime.datetime):
             return obj.isoformat()
-        elif isinstance(obj,decimal.Decimal):
+        elif isinstance(obj, decimal.Decimal):
             return float(obj)
         else:
-            return super(ApyJSONEncoder,self).default(obj)
+            return super(ApyJSONEncoder, self).default(obj)
+
 
 class AccessForbiddenError(Exception):
     pass
 
+
 class InvalidFormError(Exception):
-    def __init__(self,form):
+    def __init__(self, form):
         Exception.__init__(self)
         self.form = form
