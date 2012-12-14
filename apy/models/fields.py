@@ -30,6 +30,12 @@ class BaseField(object):
         return value
 
 
+class BooleanField(BaseField):
+    json_type = 'boolean'
+
+    python_classes = (bool,)
+
+
 class IntegerField(BaseField):
     json_type = 'integer'
 
