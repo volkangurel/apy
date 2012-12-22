@@ -114,8 +114,7 @@ class LinkField(BaseField):
         super(LinkField, self).__init__(**kwargs)
         self.link_method = link_method
 
+
 # exceptions
-
-
 class ValidationError(Exception):
     pass
