@@ -1,12 +1,18 @@
 import http.client
 
+EXCEPTION_MAP = {}
 
+
+# errors
 class ErrorsMetaClass(type):
     def __new__(cls, name, bases, attrs):
         nattrs = {}
         for k, v in attrs.items():
             if isinstance(v, tuple):
-                nattrs[k] = {'name': k.lower(), 'desc': v[0], 'http_code': v[1]}
+                e = {'name': k.lower(), 'desc': v[0], 'http_code': v[1]}
+                nattrs[k] = e
+                if len(v) > 2:
+                    EXCEPTION_MAP[v[2]] = e
             else:
                 nattrs[k] = v
         return super(ErrorsMetaClass, cls).__new__(cls, name, bases, nattrs)
@@ -35,4 +41,7 @@ class AuthErrors(BaseErrors):
 
 
 class Errors(GeneralErrors, ParameterErrors, ResourceErrors, AuthErrors):
-    pass
+
+    @classmethod
+    def get_error_for_exception(cls, exc):
+        return EXCEPTION_MAP.get(exc, cls.UNKNOWN_ERROR)

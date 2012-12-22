@@ -156,10 +156,10 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
             self.request.timezone = self.dirty_data['timezone']
         try:
             response, http_status_code = self.process()
-        except AccessForbiddenError:
-            response, http_status_code = self.error_response(self.errors.FORBIDDEN)
-        # except:
-        #     response, http_status_code = self.error_response(self.errors.UNKNOWN)
+        except Exception as e:  # pylint: disable=W0703
+            if not hasattr(self.errors, 'get_error_for_exception'):
+                raise e
+            response, http_status_code = self.error_response(self.errors.get_error_for_exception(e))
         return response, http_status_code
 
     ######################################
@@ -258,5 +258,5 @@ class AccessForbiddenError(Exception):
 
 class InvalidFormError(Exception):
     def __init__(self, form):
-        Exception.__init__(self)
+        Exception.__init__(self, form.errors.as_text())
         self.form = form
