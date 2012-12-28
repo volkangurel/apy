@@ -20,9 +20,6 @@ class ApiMethodMetaClass(type):
     creation_counter = 0
 
     def __new__(cls, name, bases, attrs):
-        # if name!='ApiMethod':
-        #     if not attrs['name']: raise Exception('subclass needs a "name" field')
-        #     if not attrs['url_pattern']: raise Exception('subclass needs a "url_pattern" field')
         attrs['class_creation_counter'] = ApiMethodMetaClass.creation_counter
         ApiMethodMetaClass.creation_counter += 1
         new_class = super(ApiMethodMetaClass, cls).__new__(cls, name, bases, attrs)
@@ -46,15 +43,18 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
     pass request, args and kwargs to methods, since they are already attributes of class instance
     """
 
-    http_method_names = ['GET', 'POST', 'PUT', 'DELETE']
+    http_method_names = ['POST', 'GET', 'PUT', 'DELETE']
     errors = import_errors(getattr(settings, 'APY_ERRORS')) if hasattr(settings, 'APY_ERRORS') else Errors
 
-    InputForm = None
+    PostForm = None
+    GetForm = None
+    PutForm = None
+    DeleteForm = None
 
     default_response_format = 'json'
 
     url_pattern = None
-    name = None
+    names = {}
 
     def __init__(self, **kwargs):
         """
@@ -66,6 +66,7 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
         for key, value in kwargs.items():
             setattr(self, key, value)
         self.request = None
+        self.method = None
         self.args = None
         self.kwargs = None
         self.dirty_data = None
@@ -102,34 +103,33 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
         # Try to dispatch to the right method; if a method doesn't exist,
         # defer to the error handler. Also defer to the error handler if the
         # request method isn't on the approved list.
-        method = request.method.upper()
-        if method not in self.http_method_names:
+        self.method = request.method.upper()
+        if self.method not in self.http_method_names:
             return self.http_method_not_allowed()
         self.request = request
         self.args = args
         self.kwargs = kwargs
+        self.dirty_data = self._get_data_from_request()
         try:
-            self.dirty_data = self.get_data_from_request()
-            self.data = self.clean_data(self.dirty_data)
+            response, http_status_code = self.get_response()
         except InvalidFormError as e:
             messages = [f + ": " + ". ".join(map(str, v)) for f, v in list(e.form.errors.items())]
             response, http_status_code = self.error_response(self.errors.INVALID_PARAM, messages)
             return self.return_response(response, http_status_code)
 
-        response, http_status_code = self.get_response()
         return self.return_response(response, http_status_code)
 
     @classmethod
-    def internal_dispatch(cls, request, dirty_data):
+    def internal_dispatch(cls, request, http_method, dirty_data):
         self = cls()
+        self.method = http_method
         self.request = request
         self.dirty_data = dirty_data
-        self.data = self.clean_data(self.dirty_data)
         response, _ = self.get_response()
         return response
 
     def http_method_not_allowed(self):
-        message = 'Only %s calls allowed for this API method' % (','.join(self.http_method_names))
+        message = 'Only %s calls allowed for this url' % (','.join(self.http_method_names))
         response, http_status_code = self.error_response(self.errors.INVALID_HTTP_METHOD, [message])
         return self.return_response(response, http_status_code)
 
@@ -149,30 +149,35 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
             d['error_messages'] = messages
         return d, error['http_code']
 
+    def handle_exception(self, exc):
+        if not hasattr(self.errors, 'get_error_for_exception'):
+            raise exc
+        return self.error_response(self.errors.get_error_for_exception(exc))
+
     def get_response(self):
+        self.data = self.clean_data(self.dirty_data)
         if 'language' in self.dirty_data:
             self.request.language = self.dirty_data['language']
         if 'timezone' in self.dirty_data:
             self.request.timezone = self.dirty_data['timezone']
+        processor = getattr(self, 'process_%s' % self.method.lower())
         try:
-            response, http_status_code = self.process()
+            response, http_status_code = processor()
         except Exception as e:  # pylint: disable=W0703
-            if not hasattr(self.errors, 'get_error_for_exception'):
-                raise e
-            response, http_status_code = self.error_response(self.errors.get_error_for_exception(e))
+            return self.handle_exception(e)
         return response, http_status_code
 
     ######################################
-    def get_data_from_request(self):
+    def _get_data_from_request(self):
         data = {}
-        if self.request.method == 'GET':
+        if self.method.upper() == 'GET':
             self._add_querydict_to_data(self.request.GET, data)
-        elif self.request.method == 'POST':
+        elif self.method.upper() == 'POST':
             self._add_querydict_to_data(self.request.POST, data)
-        elif self.request.method == 'PUT':
+        elif self.method.upper() == 'PUT':
             put_querydict = self.request.parse_file_upload(self.request.META, self.request)[0]
             self._add_querydict_to_data(put_querydict, data)
-        elif self.request.method == 'DELETE':
+        elif self.method.upper() == 'DELETE':
             delete_querydict = self.request.parse_file_upload(self.request.META, self.request)[0]
             self._add_querydict_to_data(delete_querydict, data)
         # add kwargs from url path
@@ -186,12 +191,17 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
                 k = k[:-2]
             data[k] = v
 
+    @classmethod
+    def get_input_form(cls, method):
+        return getattr(cls, '%sForm' % method.capitalize())
+
     def clean_data(self, dirty_data):
-        if self.InputForm:
-            if getattr(self.request, 'FILES', False):
-                f = self.InputForm(dirty_data, self.request.FILES)
+        form = self.get_input_form(self.method)
+        if form:
+            if getattr(self.request, 'FILES'):
+                f = form(dirty_data, self.request.FILES)
             else:
-                f = self.InputForm(dirty_data)
+                f = form(dirty_data)
             if not f.is_valid():
                 raise InvalidFormError(f)
             cleaned_data = f.cleaned_data
@@ -226,14 +236,15 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
         return django_http.HttpResponse(formatted_response, status=http_status_code, mimetype=mimetype)
 
     ######################################
-    def process(self):
-        """Overwrite this in subclasses to create the logic for the API method"""
-        return self.error_response(self.errors.UNKNOWN_API_METHOD)
+    # def process(self):
+    #     """Overwrite this in subclasses to create the logic for the API method"""
+    #     return self.error_response(self.errors.UNKNOWN_API_METHOD)
 
     ######################################
     @property
     def url_doc(self):
         return url_pattern_re.sub(url_pattern_repl, self.url_pattern)
+
 
 url_pattern_re = re.compile('\(\?P<([^>]+)>[^()]+\)')
 

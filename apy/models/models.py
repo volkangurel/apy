@@ -42,7 +42,7 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
 
     @classmethod
     def get_selectable_fields(cls):
-        return {k: v for k, v in cls.base_fields.items() if v.is_selectable}
+        return collections.OrderedDict([(k, v) for k, v in cls.base_fields.items() if v.is_selectable])
 
     @classmethod
     def get_default_fields(cls):

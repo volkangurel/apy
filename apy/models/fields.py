@@ -6,14 +6,13 @@ class BaseField(object):
     creation_counter = 0
     python_classes = tuple()
 
-    def __init__(self, description=None, is_selectable=True, is_default=False, field_type='f',
+    def __init__(self, description=None, is_selectable=True, is_default=False,
                  child_field=None, required_fields=None):
         super(BaseField, self).__init__()
 
         self.description = description
         self.is_selectable = is_selectable
         self.is_default = is_default
-        self.type = field_type
         self.child_field = child_field
         self.required_fields = required_fields
 
@@ -48,8 +47,7 @@ class LongField(BaseField):
     python_classes = (int,)
 
     def get_json_value(self, request, value):
-        if not value:
-            return None
+        if not value: return None
         return str(value)
 
 
@@ -65,8 +63,7 @@ class ArrayField(BaseField):
     python_classes = (list, tuple,)
 
     def get_json_value(self, request, value):
-        if not value:
-            return []
+        if not value: return []
         return [self.child_field.get_json_value(request, v) for v in value] if self.child_field else value
 
 
@@ -76,6 +73,7 @@ class ObjectField(BaseField):
     python_classes = (dict,)
 
     def get_json_value(self, request, value):
+        if not value: return {}
         if isinstance(self.child_field, dict):
             return {k: self.child_field[k].get_json_value(request, v) for k, v in value.items()}
         elif isinstance(self.child_field, tuple) and len(self.child_field) == 2:
@@ -91,8 +89,7 @@ class TimeField(BaseField):
     python_classes = (float,)
 
     def get_json_value(self, request, value):
-        if not value:
-            return None
+        if not value: return None
         return datetime.datetime.fromtimestamp(value).isoformat()
 
 
@@ -102,17 +99,22 @@ class DateTimeField(BaseField):
     python_classes = (datetime.datetime,)
 
     def get_json_value(self, request, value):
-        if not value:
-            return None
+        if not value: return None
         return value.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
 
 
-class LinkField(BaseField):
-    def __init__(self, **kwargs):
-        link_method = kwargs.pop('link_method')
-        kwargs['field_type'] = 'l'
-        super(LinkField, self).__init__(**kwargs)
-        self.link_method = link_method
+class AssociationField(BaseField):
+    def __init__(self, model, method, can_multi_get=False, **kwargs):
+        super(AssociationField, self).__init__(**kwargs)
+        self.model = model
+        self.method = method
+        self.can_multi_get = can_multi_get
+
+
+class ProcessedField(BaseField):
+    def __init__(self, method, **kwargs):
+        super(ProcessedField, self).__init__(**kwargs)
+        self.method = method
 
 
 # exceptions
