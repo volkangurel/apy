@@ -3,6 +3,13 @@ import http.client
 EXCEPTION_MAP = {}
 
 
+class ApiException(Exception):
+    def __init__(self, messages=None, details=None):
+        Exception.__init__(self)
+        self.messages = messages
+        self.details = details
+
+
 # errors
 class ErrorsMetaClass(type):
     def __new__(cls, name, bases, attrs):
@@ -44,4 +51,5 @@ class Errors(GeneralErrors, ParameterErrors, ResourceErrors, AuthErrors):
 
     @classmethod
     def get_error_for_exception(cls, exc):
-        return EXCEPTION_MAP.get(exc, cls.UNKNOWN_ERROR)
+        if exc.__class__ not in EXCEPTION_MAP: raise exc
+        return {'error': EXCEPTION_MAP[exc.__class__], 'messages': exc.messages, 'details': exc.details}

@@ -143,16 +143,18 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
             response['warnings'] = warnings
         return response, http_code
 
-    def error_response(self, error, messages=None):
+    def error_response(self, error, messages=None, details=None):
         d = {'ok': False, 'error': error['name']}
         if messages:
             d['error_messages'] = messages
+        if details:
+            d['error_details'] = details
         return d, error['http_code']
 
     def handle_exception(self, exc):
         if not hasattr(self.errors, 'get_error_for_exception'):
             raise exc
-        return self.error_response(self.errors.get_error_for_exception(exc))
+        return self.error_response(**self.errors.get_error_for_exception(exc))
 
     def get_response(self):
         self.data = self.clean_data(self.dirty_data)
