@@ -9,7 +9,8 @@ def get_declared_fields(bases, attrs):
 
     for base in bases[::-1]:
         if hasattr(base, 'base_fields'):
-            model_fields = list(base.base_fields.items()) + model_fields
+            model_fields = list((k, v) for k, v in base.base_fields.items()
+                                if k not in model_fields and k not in attrs) + model_fields
 
     return collections.OrderedDict(model_fields)
 
