@@ -103,12 +103,16 @@ class DateTimeField(BaseField):
         return value.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
 
 
-class AssociationField(BaseField):
+class NestedField(BaseField):
     def __init__(self, model, method, can_multi_get=False, **kwargs):
-        super(AssociationField, self).__init__(**kwargs)
+        super(NestedField, self).__init__(**kwargs)
         self.model = model
         self.method = method
         self.can_multi_get = can_multi_get
+
+
+class AssociationField(NestedField):
+    pass
 
 
 class ProcessedField(BaseField):

@@ -1,6 +1,8 @@
 import collections
+import re
 
 from apy.models import fields as apy_fields
+from django import forms
 
 
 def get_declared_fields(bases, attrs):
@@ -26,6 +28,11 @@ class ApiModelMetaClass(type):
         return new_class
 
 
+QueryField = collections.namedtuple('QueryField', ['key', 'field', 'sub_fields'])
+nested_field_re = re.compile(r'(?P<field>[^(/]+)/(?P<sub_fields>.+)')
+sub_fields_re = re.compile(r'(?P<field>[^(/]+)\((?P<sub_fields>.+)\)')
+
+
 class BaseApiModel(object, metaclass=ApiModelMetaClass):
     base_fields = None
     class_creation_counter = None
@@ -47,8 +54,44 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
 
     @classmethod
     def get_default_fields(cls):
-        return [(k, v) for k, v in cls.base_fields.items() if v.is_default]
+        return [QueryField(k, v, None) for k, v in cls.base_fields.items() if v.is_default]
 
     @classmethod
-    def get_fields(cls, keys):
-        return [(k, cls.base_fields[k]) for k in keys]
+    def parse_query_fields(cls, query_fields):
+        # credit for fields format: https://developers.google.com/blogger/docs/2.0/json/performance
+        query_fields = query_fields.replace(' ', '').lower()
+        split_fields = ['']
+        open_brackets = 0
+        for c in query_fields:
+            if c == ',' and open_brackets == 0:
+                split_fields.append('')
+            else:
+                split_fields[-1] += c
+                if c == '(':
+                    open_brackets += 1
+                elif c == ')':
+                    open_brackets -= 1
+        fields = []
+        invalid_fields = []
+        for qf in split_fields:
+            if not qf.strip(): continue
+            qf = qf.strip().lower()
+            m = nested_field_re.match(qf) or sub_fields_re.match(qf)
+            if m:
+                qf = m.group('field')
+            if qf not in cls.base_fields:
+                invalid_fields.append(qf)
+                continue
+            field = cls.base_fields[qf]
+            if not field.is_selectable:
+                invalid_fields.append(qf)
+                continue
+            if isinstance(field, apy_fields.NestedField):
+                sub_fields = m and field.model.parse_query_fields(m.group('sub_fields'))
+                fields.append(QueryField(qf, field, sub_fields))
+            else:
+                fields.append(QueryField(qf, field, None))
+        if invalid_fields:
+            plural = 's' if len(invalid_fields) > 1 else ''
+            raise forms.ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
+        return fields

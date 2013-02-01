@@ -72,8 +72,6 @@ class ArrayField(BaseField):
         return value
 
 # helper fields
-
-
 class FieldsField(StringField):
 
     def __init__(self, **kwargs):
@@ -87,13 +85,4 @@ class FieldsField(StringField):
 
     def clean(self, value):
         value = forms.CharField.clean(self, value)
-        if value:
-            value = [v.strip().lower() for v in value.split(',') if v.strip()]
-            invalid_values = [v for v in value if v not in self.model.get_selectable_fields()]
-            if invalid_values:
-                plural = 's' if len(invalid_values) > 1 else ''
-                raise forms.ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_values)))
-            value = self.model.get_fields(value)
-        else:
-            value = self.model.get_default_fields()
-        return value
+        return self.model.parse_query_fields(value) if value else self.model.get_default_fields()
