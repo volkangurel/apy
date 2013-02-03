@@ -104,15 +104,38 @@ class DateTimeField(BaseField):
 
 
 class NestedField(BaseField):
-    def __init__(self, model, method, can_multi_get=False, **kwargs):
-        super(NestedField, self).__init__(**kwargs)
-        self.model = model
+    def __init__(self, model_or_name, id_field, **kwargs):
+        super(NestedField, self).__init__(required_fields=[id_field], **kwargs)
+        self.model_or_name = model_or_name
+        self.id_field = id_field
+
+    @property
+    def model(self):
+        if not hasattr(self, '_model'):
+            if isinstance(self.model_or_name, str):
+                from apy.models import MODELS
+                self._model = MODELS[self.model_or_name]
+            else:
+                self._model = self.model_or_name
+        return self._model
+
+
+class AssociationField(BaseField):
+    def __init__(self, model_or_name, method, can_multi_get=False, **kwargs):
+        super(AssociationField, self).__init__(**kwargs)
+        self.model_or_name = model_or_name
         self.method = method
         self.can_multi_get = can_multi_get
 
-
-class AssociationField(NestedField):
-    pass
+    @property
+    def model(self):
+        if not hasattr(self, '_model'):
+            if isinstance(self.model_or_name, str):
+                from apy.models import MODELS
+                self._model = MODELS[self.model_or_name]
+            else:
+                self._model = self.model_or_name
+        return self._model
 
 
 class ProcessedField(BaseField):

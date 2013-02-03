@@ -5,6 +5,9 @@ from apy.models import fields as apy_fields
 from django import forms
 
 
+MODELS = {}
+
+
 def get_declared_fields(bases, attrs):
     model_fields = [(field_name, attrs.pop(field_name)) for field_name, obj in list(attrs.items()) if isinstance(obj, apy_fields.BaseField)]
     model_fields.sort(key=lambda x: x[1].creation_counter)
@@ -25,6 +28,7 @@ class ApiModelMetaClass(type):
         attrs['class_creation_counter'] = ApiModelMetaClass.creation_counter
         ApiModelMetaClass.creation_counter += 1
         new_class = super(ApiModelMetaClass, cls).__new__(cls, name, bases, attrs)
+        MODELS[name] = new_class
         return new_class
 
 
@@ -86,7 +90,7 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
             if not field.is_selectable:
                 invalid_fields.append(qf)
                 continue
-            if isinstance(field, apy_fields.NestedField):
+            if isinstance(field, (apy_fields.NestedField, apy_fields.AssociationField)):
                 sub_fields = m and field.model.parse_query_fields(m.group('sub_fields'))
                 fields.append(QueryField(qf, field, sub_fields))
             else:
