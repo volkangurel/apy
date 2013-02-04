@@ -105,9 +105,10 @@ class DateTimeField(BaseField):
 
 class NestedField(BaseField):
     def __init__(self, model_or_name, id_field, **kwargs):
-        super(NestedField, self).__init__(required_fields=[id_field], **kwargs)
+        id_fields = id_field.split('.')
+        super(NestedField, self).__init__(required_fields=[id_fields[0]], **kwargs)
         self.model_or_name = model_or_name
-        self.id_field = id_field
+        self.id_fields = id_fields
 
     @property
     def model(self):
@@ -118,6 +119,13 @@ class NestedField(BaseField):
             else:
                 self._model = self.model_or_name
         return self._model
+
+    def get_id(self, obj):
+        d = obj
+        for id_field in self.id_fields:
+            if not d: return None
+            d = d.get(id_field)
+        return d
 
 
 class AssociationField(BaseField):
@@ -136,12 +144,6 @@ class AssociationField(BaseField):
             else:
                 self._model = self.model_or_name
         return self._model
-
-
-class ProcessedField(BaseField):
-    def __init__(self, method, **kwargs):
-        super(ProcessedField, self).__init__(**kwargs)
-        self.method = method
 
 
 # exceptions
