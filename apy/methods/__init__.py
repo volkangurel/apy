@@ -1,7 +1,7 @@
 import inspect
 
 from django import http
-from django.conf.urls.defaults import patterns, url
+from django.conf.urls import patterns, url
 
 from . import utils
 
