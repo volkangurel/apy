@@ -1,9 +1,9 @@
 import collections
 import re
 
-from apy.models import fields as apy_fields
 from django import forms
 
+from apy.models import fields as apy_fields
 
 MODELS = {}
 
