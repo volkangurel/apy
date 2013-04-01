@@ -95,7 +95,7 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
                 fields.append(QueryField(qf, field, sub_fields))
             else:
                 fields.append(QueryField(qf, field, None))
-        if invalid_fields:
-            plural = 's' if len(invalid_fields) > 1 else ''
-            raise forms.ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
+        # if invalid_fields:
+        #     plural = 's' if len(invalid_fields) > 1 else ''
+        #     raise forms.ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
         return fields
