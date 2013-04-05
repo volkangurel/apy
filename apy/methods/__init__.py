@@ -62,10 +62,10 @@ class ApiDirectory(object):
     def urlpatterns(self):
         return patterns('', *self.urls)
 
-    def internal_call(self, request, method_name, dirty_data):
+    def internal_call(self, request, method_name, dirty_data, raise_exception=False):
         dirty_data = dirty_data.copy()
         method_tuple = self.methods.get(method_name)
         if not method_tuple:
             raise http.Http404('Invalid method name: "%s"' % method_name)
         method, http_method = method_tuple
-        return method.internal_dispatch(request, http_method, dirty_data)
+        return method.internal_dispatch(request, http_method, dirty_data, raise_exception=raise_exception)

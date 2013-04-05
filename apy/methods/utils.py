@@ -120,12 +120,12 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
         return self.return_response(response, http_status_code)
 
     @classmethod
-    def internal_dispatch(cls, request, http_method, dirty_data):
+    def internal_dispatch(cls, request, http_method, dirty_data, raise_exception=False):
         self = cls()
         self.method = http_method
         self.request = request
         self.dirty_data = dirty_data
-        response, _ = self.get_response()
+        response, _ = self.get_response(raise_exception=raise_exception)
         return response
 
     def http_method_not_allowed(self):
@@ -156,7 +156,7 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
             raise exc
         return self.error_response(**self.errors.get_error_for_exception(exc))
 
-    def get_response(self):
+    def get_response(self, raise_exception=False):
         self.data = self.clean_data(self.dirty_data)
         if 'language' in self.dirty_data:
             self.request.language = self.dirty_data['language']
@@ -166,6 +166,8 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
         try:
             response, http_status_code = processor()
         except Exception as e:  # pylint: disable=W0703
+            if raise_exception:
+                raise
             return self.handle_exception(e)
         return response, http_status_code
 
