@@ -1,155 +1,99 @@
 import collections
+import re
 
 from apy.models import fields as apy_fields
 
-### model metaclass
+MODELS = {}
+
+
 def get_declared_fields(bases, attrs):
-    model_fields = [(field_name, attrs.pop(field_name)) for field_name, obj in attrs.items() if isinstance(obj, apy_fields.BaseField)]
+    model_fields = [(field_name, attrs.pop(field_name)) for field_name, obj in list(attrs.items()) if isinstance(obj, apy_fields.BaseField)]
     model_fields.sort(key=lambda x: x[1].creation_counter)
 
     for base in bases[::-1]:
         if hasattr(base, 'base_fields'):
-            model_fields = base.base_fields.items() + model_fields
+            model_fields = list((k, v) for k, v in base.base_fields.items()
+                                if k not in model_fields and k not in attrs) + model_fields
 
     return collections.OrderedDict(model_fields)
 
-def get_permissions(bases, attrs):
-    permissions = ApiModelPermissions()
-
-    for base in bases:
-        if not hasattr(base,'permissions'): continue
-        permissions.update_with_other(base.permissions)
-
-    if 'default_permissions' in attrs:
-        permissions.update(**attrs.pop('default_permissions'))
-
-    if 'additional_permissions' in attrs:
-        permissions.add(**attrs.pop('additional_permissions'))
-
-    return permissions
 
 class ApiModelMetaClass(type):
     creation_counter = 0
+
     def __new__(cls, name, bases, attrs):
         attrs['base_fields'] = get_declared_fields(bases, attrs)
-        attrs['permissions'] = get_permissions(bases, attrs)
         attrs['class_creation_counter'] = ApiModelMetaClass.creation_counter
         ApiModelMetaClass.creation_counter += 1
-        new_class = super(ApiModelMetaClass,cls).__new__(cls, name, bases, attrs)
+        new_class = super(ApiModelMetaClass, cls).__new__(cls, name, bases, attrs)
+        MODELS[name] = new_class
         return new_class
 
-class ApiModelPermissions(object):
 
-    def __init__(self):
-        self.read_permissions = collections.defaultdict(set)
-        self.update_permissions = collections.defaultdict(set)
-        self.create_permissions = set()
-        self.delete_permissions = set()
-
-        self.object = None
-
-    def __repr__(self):
-        s = '<ApiModelPermissions:\n'
-        s += 'read: ' + str(self.read_permissions) + '\n'
-        s += 'update: ' + str(self.update_permissions) + '\n'
-        s += 'create: ' + str(self.create_permissions) + '\n'
-        s += 'delete: ' + str(self.delete_permissions) + '\n'
-        s += '>'
-        return s
-
-    def __get__(self,instance,owner):
-        if instance is not None:
-            instance.update_permissions(self)
-            self.object = instance # set the object bound to this permissions object
-        return self
-
-    def update_with_other(self,other):
-        self.update(other.read_permissions,other.update_permissions,other.create_permissions,other.delete_permissions)
-
-    def update(self,read=None,update=None,create=None,delete=None):
-        if read: self.read_permissions.update(read)
-        if update: self.update_permissions.update(update)
-        if create: self.create_permissions = create
-        if delete: self.delete_permissions = delete
-
-    def add(self,read_permissions=None,update_permissions=None,
-            create_permissions=None,delete_permissions=None):
-        if read_permissions:
-            for k,v in read_permissions.iteritems():
-                self.read_permissions[k].update(v)
-        if update_permissions:
-            for k,v in update_permissions.iteritems():
-                self.update[k].update(v)
-        if create_permissions: self.create_permissions.update(create_permissions)
-        if delete_permissions: self.delete_permissions.update(delete_permissions)
-
-    def check_read_fields(self,request,fields):
-        p = request.user.get_permissions(request, self.object)
-        _fields = []
-        user_roles = set(p['roles']) if 'roles' in p else set()
-        if 'superuser' in user_roles: return fields # superusers have access to everything
-        for k,v in fields:
-            valid_roles = self.read_permissions.get(k,set()) | self.read_permissions.get('*',set())
-            if 'public' in valid_roles or user_roles&valid_roles: _fields.append((k,v))
-        return _fields
-
-    def check_update_fields(self,request,fields):
-        return fields
-
-    def check_create_fields(self,request,fields):
-        return fields
-
-    @classmethod
-    def can_delete(self,request):
-        return False
+QueryField = collections.namedtuple('QueryField', ['key', 'field', 'sub_fields'])
+nested_field_re = re.compile(r'(?P<field>[^(/]+)/(?P<sub_fields>.+)')
+sub_fields_re = re.compile(r'(?P<field>[^(/]+)\((?P<sub_fields>.+)\)')
 
 
-class BaseApiModel(object):
-    __metaclass__ = ApiModelMetaClass
-
+class BaseApiModel(object, metaclass=ApiModelMetaClass):
     base_fields = None
     class_creation_counter = None
     is_hidden = False
 
-    def __init__(self,*args,**kwargs):
-        super(BaseApiModel,self).__init__(*args,**kwargs)
+    def __init__(self, *args, **kwargs):
+        super(BaseApiModel, self).__init__(*args, **kwargs)
 
     @classmethod
-    def pre_create(cls, request, fields):
-        cls.permissions.check_create_fields(request,fields)
-        # TODO: validate fields
-
-    @classmethod
-    def pre_update(cls, request, fields):
-        cls.permissions.check_update_fields(request,fields)
-        # TODO: validate fields
-
-    @classmethod
-    def pre_delete(cls, request, fields):
-        cls.permissions.check_delete_fields(request,fields)
-
-    @classmethod
-    def validate_fields(cls,fields):
-        for k,v in fields.items():
+    def validate_fields(cls, fields):
+        for k, v in list(fields.items()):
             if k not in cls.base_fields:
-                raise apy_fields.ValidationError("invalid key '%s' for model '%s'"%(k,cls.__name__))
-            cls.base_fields[k].validate(k,v,cls.__name__)
+                raise apy_fields.ValidationError("invalid key '%s' for model '%s'" % (k, cls.__name__))
+            cls.base_fields[k].validate(k, v, cls.__name__)
 
     @classmethod
     def get_selectable_fields(cls):
-        return {k:v for k,v in cls.base_fields.iteritems() if v.is_selectable}
+        return collections.OrderedDict([(k, v) for k, v in cls.base_fields.items() if v.is_selectable])
 
     @classmethod
     def get_default_fields(cls):
-        return [(k,v) for k,v in cls.base_fields.iteritems() if v.is_default]
+        return [QueryField(k, v, None) for k, v in cls.base_fields.items() if v.is_default]
 
     @classmethod
-    def get_fields(cls,keys):
-        return [(k,cls.base_fields[k]) for k in keys]
-
-    # permissions
-    permissions = None
-    default_permissions = {}
-
-    def update_permissions(self, permissions):
-        pass # used to update permissions based on individual object data
+    def parse_query_fields(cls, query_fields):
+        # credit for fields format: https://developers.google.com/blogger/docs/2.0/json/performance
+        query_fields = query_fields.replace(' ', '').lower()
+        split_fields = ['']
+        open_brackets = 0
+        for c in query_fields:
+            if c == ',' and open_brackets == 0:
+                split_fields.append('')
+            else:
+                split_fields[-1] += c
+                if c == '(':
+                    open_brackets += 1
+                elif c == ')':
+                    open_brackets -= 1
+        fields = []
+        invalid_fields = []
+        for qf in split_fields:
+            if not qf.strip(): continue
+            qf = qf.strip().lower()
+            m = nested_field_re.match(qf) or sub_fields_re.match(qf)
+            if m:
+                qf = m.group('field')
+            if qf not in cls.base_fields:
+                invalid_fields.append(qf)
+                continue
+            field = cls.base_fields[qf]
+            if not field.is_selectable:
+                invalid_fields.append(qf)
+                continue
+            if isinstance(field, (apy_fields.NestedField, apy_fields.AssociationField)):
+                sub_fields = m and field.model.parse_query_fields(m.group('sub_fields'))
+                fields.append(QueryField(qf, field, sub_fields))
+            else:
+                fields.append(QueryField(qf, field, None))
+        # if invalid_fields:
+        #     plural = 's' if len(invalid_fields) > 1 else ''
+        #     raise forms.ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
+        return fields
