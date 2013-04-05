@@ -5,6 +5,7 @@ class BaseField(object):
 
     creation_counter = 0
     python_classes = tuple()
+    formats = set()
 
     def __init__(self, description=None, is_selectable=True, is_default=False,
                  child_field=None, required_fields=None):
@@ -25,7 +26,7 @@ class BaseField(object):
         if self.child_field:
             self.child_field.validate(value)
 
-    def get_json_value(self, request, value):
+    def get_json_value(self, request, value, field):  # pylint: disable=W0613
         return value
 
 
@@ -36,7 +37,7 @@ class BooleanField(BaseField):
 
 
 class IntegerField(BaseField):
-    json_type = 'integer'
+    json_type = 'number'
 
     python_classes = (int,)
 
@@ -46,7 +47,7 @@ class LongField(BaseField):
 
     python_classes = (int,)
 
-    def get_json_value(self, request, value):
+    def get_json_value(self, request, value, field):
         if not value: return None
         return str(value)
 
@@ -62,7 +63,7 @@ class ArrayField(BaseField):
 
     python_classes = (list, tuple,)
 
-    def get_json_value(self, request, value):
+    def get_json_value(self, request, value, field):
         if not value: return []
         return [self.child_field.get_json_value(request, v) for v in value] if self.child_field else value
 
@@ -72,7 +73,7 @@ class ObjectField(BaseField):
 
     python_classes = (dict,)
 
-    def get_json_value(self, request, value):
+    def get_json_value(self, request, value, field):
         if not value: return {}
         if isinstance(self.child_field, dict):
             return {k: self.child_field[k].get_json_value(request, v) for k, v in value.items()}
@@ -83,22 +84,12 @@ class ObjectField(BaseField):
             return value
 
 
-class TimeField(BaseField):
-    json_type = 'string'
-
-    python_classes = (float,)
-
-    def get_json_value(self, request, value):
-        if not value: return None
-        return datetime.datetime.fromtimestamp(value).isoformat()
-
-
 class DateTimeField(BaseField):
     json_type = 'string'
 
     python_classes = (datetime.datetime,)
 
-    def get_json_value(self, request, value):
+    def get_json_value(self, request, value, field):
         if not value: return None
         return value.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
 

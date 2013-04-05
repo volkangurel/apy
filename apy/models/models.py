@@ -1,7 +1,9 @@
 import collections
 import re
 
-from apy.models import fields as apy_fields
+from django import forms
+
+from . import fields as apy_fields
 
 MODELS = {}
 
@@ -30,9 +32,10 @@ class ApiModelMetaClass(type):
         return new_class
 
 
-QueryField = collections.namedtuple('QueryField', ['key', 'field', 'sub_fields'])
+QueryField = collections.namedtuple('QueryField', ['key', 'field', 'sub_fields', 'format'])
 nested_field_re = re.compile(r'(?P<field>[^(/]+)/(?P<sub_fields>.+)')
 sub_fields_re = re.compile(r'(?P<field>[^(/]+)\((?P<sub_fields>.+)\)')
+formatted_field_re = re.compile(r'(?P<field>[^(/]+)\.(?P<format>.+)')
 
 
 class BaseApiModel(object, metaclass=ApiModelMetaClass):
@@ -52,14 +55,14 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
 
     @classmethod
     def get_selectable_fields(cls):
-        return collections.OrderedDict([(k, v) for k, v in cls.base_fields.items() if v.is_selectable])
+        return [QueryField(k, v, None, None) for k, v in cls.base_fields.items() if v.is_selectable]
 
     @classmethod
     def get_default_fields(cls):
-        return [QueryField(k, v, None) for k, v in cls.base_fields.items() if v.is_default]
+        return [QueryField(k, v, None, None) for k, v in cls.base_fields.items() if v.is_default]
 
     @classmethod
-    def parse_query_fields(cls, query_fields):
+    def parse_query_fields(cls, query_fields, ignore_invalid_fields=False):
         # credit for fields format: https://developers.google.com/blogger/docs/2.0/json/performance
         query_fields = query_fields.replace(' ', '').lower()
         split_fields = ['']
@@ -78,7 +81,7 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
         for qf in split_fields:
             if not qf.strip(): continue
             qf = qf.strip().lower()
-            m = nested_field_re.match(qf) or sub_fields_re.match(qf)
+            m = nested_field_re.match(qf) or sub_fields_re.match(qf) or formatted_field_re.match(qf)
             if m:
                 qf = m.group('field')
             if qf not in cls.base_fields:
@@ -90,10 +93,15 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
                 continue
             if isinstance(field, (apy_fields.NestedField, apy_fields.AssociationField)):
                 sub_fields = m and field.model.parse_query_fields(m.group('sub_fields'))
-                fields.append(QueryField(qf, field, sub_fields))
+                fields.append(QueryField(qf, field, sub_fields, None))
+            elif m and m.group('format'):
+                format_ = m.group('format')
+                if format_ not in field.formats:
+                    raise forms.ValidationError('invalid format "%s" on field "%s"' % (format_, qf))
+                fields.append(QueryField(qf, field, None, format_))
             else:
-                fields.append(QueryField(qf, field, None))
-        # if invalid_fields:
-        #     plural = 's' if len(invalid_fields) > 1 else ''
-        #     raise forms.ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
+                fields.append(QueryField(qf, field, None, None))
+        if invalid_fields and not ignore_invalid_fields:
+            plural = 's' if len(invalid_fields) > 1 else ''
+            raise forms.ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
         return fields

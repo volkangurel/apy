@@ -81,7 +81,7 @@ class FieldsField(StringField):
         kwargs['required'] = False
         super(FieldsField, self).__init__(**kwargs)
         self.model = model
-        self.help_text = 'Fields returned, can be: %s' % (','.join(self.model.get_selectable_fields()))
+        self.help_text = 'Fields returned, can be: %s' % (', '.join(f.key for f in self.model.get_selectable_fields()))
 
     def clean(self, value):
         value = forms.CharField.clean(self, value)
