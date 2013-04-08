@@ -52,6 +52,12 @@ class LongField(BaseField):
         return str(value)
 
 
+class FloatField(BaseField):
+    json_type = 'number'
+
+    python_classes = (float,)
+
+
 class StringField(BaseField):
     json_type = 'string'
 

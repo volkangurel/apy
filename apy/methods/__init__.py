@@ -62,7 +62,7 @@ class ApiDirectory(object):
     def urlpatterns(self):
         return patterns('', *self.urls)
 
-    def internal_call(self, request, method_name, dirty_data, raise_exception=False):
+    def internal_call(self, request, method_name, dirty_data, raise_exception=True):
         dirty_data = dirty_data.copy()
         method_tuple = self.methods.get(method_name)
         if not method_tuple:
