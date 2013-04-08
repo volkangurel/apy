@@ -62,7 +62,7 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
         return [QueryField(k, v, None, None) for k, v in cls.base_fields.items() if v.is_default]
 
     @classmethod
-    def parse_query_fields(cls, query_fields, ignore_invalid_fields=False):
+    def parse_query_fields(cls, query_fields, ignore_invalid_fields=False, use_generic_fields=False):
         # credit for fields format: https://developers.google.com/blogger/docs/2.0/json/performance
         query_fields = query_fields.replace(' ', '').lower()
         split_fields = ['']
@@ -85,7 +85,13 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
             if m:
                 qf = m.group('field')
             if qf not in cls.base_fields:
-                invalid_fields.append(qf)
+                if use_generic_fields:
+                    sub_fields = None
+                    if m:
+                        sub_fields = BaseApiModel.parse_query_fields(m.group('sub_fields'), use_generic_fields=True)
+                    fields.append(QueryField(qf, None, sub_fields, None))
+                else:
+                    invalid_fields.append(qf)
                 continue
             field = cls.base_fields[qf]
             if not field.is_selectable:
