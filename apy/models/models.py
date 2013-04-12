@@ -97,7 +97,7 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
             if not field.is_selectable:
                 invalid_fields.append(qf)
                 continue
-            if isinstance(field, (apy_fields.NestedField, apy_fields.AssociationField)):
+            if isinstance(field, (apy_fields.NestedField, apy_fields.RelationField, apy_fields.AssociationField)):
                 sub_fields = m and field.model.parse_query_fields(m.group('sub_fields'))
                 fields.append(QueryField(qf, field, sub_fields, None))
             elif m and m.group('format'):
@@ -111,3 +111,7 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
             plural = 's' if len(invalid_fields) > 1 else ''
             raise forms.ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
         return fields
+
+
+class BaseApiRelation(BaseApiModel):
+    is_hidden = True

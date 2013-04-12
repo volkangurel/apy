@@ -71,7 +71,7 @@ class ArrayField(BaseField):
 
     def get_json_value(self, request, value, field):
         if not value: return []
-        return [self.child_field.get_json_value(request, v) for v in value] if self.child_field else value
+        return [self.child_field.get_json_value(request, v, field) for v in value] if self.child_field else value
 
 
 class ObjectField(BaseField):
@@ -82,9 +82,9 @@ class ObjectField(BaseField):
     def get_json_value(self, request, value, field):
         if not value: return {}
         if isinstance(self.child_field, dict):
-            return {k: self.child_field[k].get_json_value(request, v) for k, v in value.items()}
+            return {k: self.child_field[k].get_json_value(request, v, field) for k, v in value.items()}
         elif isinstance(self.child_field, tuple) and len(self.child_field) == 2:
-            return {self.child_field[0].get_json_value(request, k): self.child_field[1].get_json_value(request, v)
+            return {self.child_field[0].get_json_value(request, k, field): self.child_field[1].get_json_value(request, v, field)
                     for k, v in value.items()}
         else:
             return value
@@ -101,11 +101,12 @@ class DateTimeField(BaseField):
 
 
 class NestedField(BaseField):
-    def __init__(self, model_or_name, id_field, **kwargs):
+    def __init__(self, model_or_name, id_field, multi_id_field=False, **kwargs):
         id_fields = id_field.split('.')
         super(NestedField, self).__init__(required_fields=[id_fields[0]], **kwargs)
         self.model_or_name = model_or_name
         self.id_fields = id_fields
+        self.multi_id_field = multi_id_field
 
     @property
     def model(self):
@@ -123,6 +124,23 @@ class NestedField(BaseField):
             if not d: return None
             d = d.get(id_field)
         return d
+
+
+class RelationField(BaseField):
+    def __init__(self, model_or_name, id_field, **kwargs):
+        super(RelationField, self).__init__(**kwargs)
+        self.model_or_name = model_or_name
+        self.id_field = id_field
+
+    @property
+    def model(self):
+        if not hasattr(self, '_model'):
+            if isinstance(self.model_or_name, str):
+                from apy.models import MODELS
+                self._model = MODELS[self.model_or_name]
+            else:
+                self._model = self.model_or_name
+        return self._model
 
 
 class AssociationField(BaseField):
