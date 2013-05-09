@@ -97,10 +97,10 @@ class BaseApiModel(object, metaclass=ApiModelMetaClass):
             if not field.is_selectable:
                 invalid_fields.append(qf)
                 continue
-            if isinstance(field, (apy_fields.NestedField, apy_fields.RelationField, apy_fields.AssociationField)):
+            if isinstance(field, apy_fields.BaseNestableField):
                 sub_fields = m and field.model.parse_query_fields(m.group('sub_fields'))
                 fields.append(QueryField(qf, field, sub_fields, None))
-            elif m and m.group('format'):
+            elif m and m.groupdict().get('format'):
                 format_ = m.group('format')
                 if format_ not in field.formats:
                     raise forms.ValidationError('invalid format "%s" on field "%s"' % (format_, qf))

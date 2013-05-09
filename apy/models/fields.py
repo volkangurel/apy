@@ -20,6 +20,9 @@ class BaseField(object):
         self.creation_counter = BaseField.creation_counter
         BaseField.creation_counter += 1
 
+    def __repr__(self):
+        return '<%s>' % type(self).__name__
+
     def validate(self, key, value, model):
         if not any(isinstance(value, c) for c in self.python_classes):
             raise ValidationError("invalid type '%s' for field '%s' in model '%s', has to be an instance of %s" % (type(value).__name__, key, model, ' or '.join("'%s'" % c.__name__ for c in self.python_classes)))
@@ -28,6 +31,22 @@ class BaseField(object):
 
     def get_json_value(self, request, value, field):  # pylint: disable=W0613
         return value
+
+
+class BaseNestableField(BaseField):
+    def __init__(self, model_or_name, **kwargs):
+        super(BaseNestableField, self).__init__(**kwargs)
+        self.model_or_name = model_or_name
+
+    @property
+    def model(self):
+        if not hasattr(self, '_model'):
+            if isinstance(self.model_or_name, str):
+                from apy.models import MODELS
+                self._model = MODELS[self.model_or_name]
+            else:
+                self._model = self.model_or_name  # pylint: disable=W0201
+        return self._model
 
 
 class BooleanField(BaseField):
@@ -100,23 +119,12 @@ class DateTimeField(BaseField):
         return value.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
 
 
-class NestedField(BaseField):
+class NestedField(BaseNestableField):
     def __init__(self, model_or_name, id_field, multi_id_field=False, **kwargs):
         id_fields = id_field.split('.')
-        super(NestedField, self).__init__(required_fields=[id_fields[0]], **kwargs)
-        self.model_or_name = model_or_name
+        super(NestedField, self).__init__(model_or_name, required_fields=[id_fields[0]], **kwargs)
         self.id_fields = id_fields
         self.multi_id_field = multi_id_field
-
-    @property
-    def model(self):
-        if not hasattr(self, '_model'):
-            if isinstance(self.model_or_name, str):
-                from apy.models import MODELS
-                self._model = MODELS[self.model_or_name]
-            else:
-                self._model = self.model_or_name
-        return self._model
 
     def get_id(self, obj):
         d = obj
@@ -126,39 +134,16 @@ class NestedField(BaseField):
         return d
 
 
-class RelationField(BaseField):
+class RelationField(BaseNestableField):
     def __init__(self, model_or_name, id_field, **kwargs):
-        super(RelationField, self).__init__(**kwargs)
-        self.model_or_name = model_or_name
+        super(RelationField, self).__init__(model_or_name, **kwargs)
         self.id_field = id_field
 
-    @property
-    def model(self):
-        if not hasattr(self, '_model'):
-            if isinstance(self.model_or_name, str):
-                from apy.models import MODELS
-                self._model = MODELS[self.model_or_name]
-            else:
-                self._model = self.model_or_name
-        return self._model
 
-
-class AssociationField(BaseField):
-    def __init__(self, model_or_name, method, can_multi_get=False, **kwargs):
-        super(AssociationField, self).__init__(**kwargs)
-        self.model_or_name = model_or_name
+class AssociationField(BaseNestableField):
+    def __init__(self, model_or_name, method, **kwargs):
+        super(AssociationField, self).__init__(model_or_name, **kwargs)
         self.method = method
-        self.can_multi_get = can_multi_get
-
-    @property
-    def model(self):
-        if not hasattr(self, '_model'):
-            if isinstance(self.model_or_name, str):
-                from apy.models import MODELS
-                self._model = MODELS[self.model_or_name]
-            else:
-                self._model = self.model_or_name
-        return self._model
 
 
 # exceptions
