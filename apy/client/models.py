@@ -59,6 +59,7 @@ formatted_field_re = re.compile(r'(?P<field>[^(/]+)\.(?P<format>.+)')
 class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     class_creation_counter = None
     is_hidden = False
+    readonly = False
 
     display_name = None
     plural_display_name = None
@@ -173,6 +174,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     # form utils
     @classmethod
     def get_id_form_field(cls):
+        if 'id' not in cls.base_fields: raise Exception(cls.base_fields)
         return forms.ModelFieldField(cls.base_fields[cls.id_field])
 
     @classmethod

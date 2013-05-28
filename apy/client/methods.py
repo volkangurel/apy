@@ -132,16 +132,15 @@ class ClientObjectNestedMethodMetaClass(ClientMethodMetaClass):
         if attrs.get('model') is not NotImplemented and attrs.get('nested_field') is not NotImplemented:
             model = attrs['model']
             nested_field = attrs['nested_field']
-            field = model._fields[nested_field]  # pylint: disable=W0212
+            field = model.base_fields[nested_field]  # pylint: disable=W0212
             attrs['nested_model'] = nested_model = field.get_model(model)
             attrs.setdefault('id_field', '%s_id' % model.lowercase_name)
             attrs['url_pattern'] = r'%s/(?P<%s>[^/])/%s' % (model.url_name, attrs['id_field'], nested_field)
             names = attrs.setdefault('names', {})
-            readonly = attrs.get('readonly', False)
-            attrs.setdefault('http_method_names', ['GET'] if readonly else ['GET', 'POST'])
+            attrs.setdefault('http_method_names', ['GET'] if nested_model.readonly else ['GET', 'POST'])
             names.setdefault('GET', 'Get %s %s' % (model.display_name, nested_model.plural_display_name))
-            attrs.setdefault('GetForm', nested_model.get_nested_read_form())
-            if not readonly:
+            attrs.setdefault('GetForm', model.get_nested_read_form(nested_model))
+            if not nested_model.readonly:
                 names.setdefault('POST', 'Create %s in %s' % (nested_model.display_name, model.display_name))
                 attrs.setdefault('PostForm', nested_model.get_create_form())
         return super(ClientObjectNestedMethodMetaClass, cls).__new__(cls, name, bases, attrs)

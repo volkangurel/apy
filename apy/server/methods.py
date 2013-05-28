@@ -251,6 +251,7 @@ class ServerObjectsMethodMetaClass(ServerMethodMetaClass):
         new_class = super(ServerObjectsMethodMetaClass, cls).__new__(cls, name, bases, attrs)
         if new_class.ClientMethod is not NotImplemented:
             new_class.model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.model]
+        return new_class
 
 
 class ServerObjectsMethod(ServerMethod, metaclass=ServerObjectsMethodMetaClass):
@@ -271,6 +272,7 @@ class ServerObjectMethodMetaClass(ServerMethodMetaClass):
         new_class = super(ServerObjectMethodMetaClass, cls).__new__(cls, name, bases, attrs)
         if new_class.ClientMethod is not NotImplemented:
             new_class.model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.model]
+        return new_class
 
 
 class ServerObjectMethod(ServerMethod, metaclass=ServerObjectMethodMetaClass):
@@ -292,6 +294,7 @@ class ServerObjectNestedMethodMetaClass(ServerMethodMetaClass):
         if new_class.ClientMethod is not NotImplemented:
             new_class.model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.model]
             new_class.nested_model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.nested_model]
+        return new_class
 
 
 class ServerObjectNestedMethod(ServerMethod, metaclass=ServerObjectNestedMethodMetaClass):
