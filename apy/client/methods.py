@@ -1,7 +1,5 @@
 import re
 
-from . import forms
-
 METHODS = {}
 
 
@@ -12,6 +10,7 @@ class ClientMethodMetaClass(type):
         attrs['class_creation_counter'] = ClientMethodMetaClass.creation_counter
         ClientMethodMetaClass.creation_counter += 1
         new_class = super(ClientMethodMetaClass, cls).__new__(cls, name, bases, attrs)
+        METHODS[name] = new_class
         return new_class
 
 
@@ -85,7 +84,7 @@ class ClientDeleteMethod(ClientMethod):
 
 class ClientObjectsMethodMetaClass(ClientMethodMetaClass):
     def __new__(cls, name, bases, attrs):
-        if attrs.get('model') is not None:
+        if attrs.get('model') is not NotImplemented:
             model = attrs['model']
             attrs['url_pattern'] = model.url_name
             names = attrs.setdefault('names', {})
@@ -100,13 +99,13 @@ class ClientObjectsMethodMetaClass(ClientMethodMetaClass):
 
 class ClientObjectsMethod(ClientMethod, metaclass=ClientObjectsMethodMetaClass):
     http_method_names = ['POST', 'GET', 'DELETE']
-    model = None
+    model = NotImplemented
 
 
 class ClientObjectMethodMetaClass(ClientMethodMetaClass):
 
     def __new__(cls, name, bases, attrs):
-        if attrs.get('model') is not None:
+        if attrs.get('model') is not NotImplemented:
             model = attrs['model']
             attrs.setdefault('id_field', '%s_id' % model.lowercase_name)
             attrs['url_pattern'] = r'%s/(?P<%s>[^/])' % (model.url_name, model.id_field)
@@ -123,14 +122,14 @@ class ClientObjectMethodMetaClass(ClientMethodMetaClass):
 class ClientObjectMethod(ClientMethod, metaclass=ClientObjectMethodMetaClass):
     http_method_names = ['GET', 'PUT', 'DELETE']  # read, update or delete an object
 
-    model = None
-    id_field = None
+    model = NotImplemented
+    id_field = NotImplemented
 
 
 class ClientObjectNestedMethodMetaClass(ClientMethodMetaClass):
 
     def __new__(cls, name, bases, attrs):
-        if attrs.get('model') is not None and attrs.get('nested_field') is not None:
+        if attrs.get('model') is not NotImplemented and attrs.get('nested_field') is not NotImplemented:
             model = attrs['model']
             nested_field = attrs['nested_field']
             field = model._fields[nested_field]  # pylint: disable=W0212
@@ -151,11 +150,11 @@ class ClientObjectNestedMethodMetaClass(ClientMethodMetaClass):
 class ClientObjectNestedMethod(ClientMethod, metaclass=ClientObjectNestedMethodMetaClass):
     http_method_names = []
 
-    model = None
-    id_field = None
-    nested_field = None
+    model = NotImplemented
+    id_field = NotImplemented
+    nested_field = NotImplemented
 
-    nested_model = None
+    nested_model = NotImplemented
 
 
 def add_nested_methods_for_model(lcls, model, fields):

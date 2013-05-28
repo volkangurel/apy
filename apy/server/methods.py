@@ -9,6 +9,9 @@ from django.conf import settings
 from django.conf.urls import patterns, url
 from django.utils import importlib
 
+from apy.client.methods import METHODS
+
+from .models import CLIENT_TO_SERVER_MODELS
 from .errors import Errors
 
 
@@ -34,17 +37,17 @@ class ServerMethodMetaClass(type):
     def __new__(cls, name, bases, attrs):
         attrs['class_creation_counter'] = ServerMethodMetaClass.creation_counter
         ServerMethodMetaClass.creation_counter += 1
+        if name in METHODS:
+            attrs['ClientMethod'] = METHODS[name]
         new_class = super(ServerMethodMetaClass, cls).__new__(cls, name, bases, attrs)
-        client_method = attrs.get('ClientMethod')
-        if client_method:
-            if client_method in SERVER_METHODS:
-                raise Exception('cannot have two server methods for one client method "%s"' % client_method)
+        client_method = attrs.get('ClientMethod', NotImplemented)
+        if client_method is not NotImplemented:
             SERVER_METHODS[client_method] = new_class
         return new_class
 
 
 class ServerMethod(object, metaclass=ServerMethodMetaClass):
-    ClientMethod = None
+    ClientMethod = NotImplemented
     errors = import_errors(getattr(settings, 'APY_ERRORS')) if hasattr(settings, 'APY_ERRORS') else Errors
 
     def __init__(self, **kwargs):
@@ -231,6 +234,7 @@ class ServerMethod(object, metaclass=ServerMethodMetaClass):
         return http.HttpResponse(formatted_response, status=http_status_code, mimetype=mimetype)
 
 
+# errors
 class AccessForbiddenError(Exception):
     pass
 
@@ -241,6 +245,67 @@ class InvalidFormError(Exception):
         self.form = form
 
 
+# helper classes
+class ServerObjectsMethodMetaClass(ServerMethodMetaClass):
+    def __new__(cls, name, bases, attrs):
+        new_class = super(ServerObjectsMethodMetaClass, cls).__new__(cls, name, bases, attrs)
+        if new_class.ClientMethod is not NotImplemented:
+            new_class.model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.model]
+
+
+class ServerObjectsMethod(ServerMethod, metaclass=ServerObjectsMethodMetaClass):
+    model = NotImplemented
+
+    def process_post(self):
+        raise NotImplementedError()
+
+    def process_get(self):
+        raise NotImplementedError()
+
+    def process_delete(self):
+        raise NotImplementedError()
+
+
+class ServerObjectMethodMetaClass(ServerMethodMetaClass):
+    def __new__(cls, name, bases, attrs):
+        new_class = super(ServerObjectMethodMetaClass, cls).__new__(cls, name, bases, attrs)
+        if new_class.ClientMethod is not NotImplemented:
+            new_class.model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.model]
+
+
+class ServerObjectMethod(ServerMethod, metaclass=ServerObjectMethodMetaClass):
+    model = NotImplemented
+
+    def process_get(self):
+        raise NotImplementedError()
+
+    def process_put(self):
+        raise NotImplementedError()
+
+    def process_delete(self):
+        raise NotImplementedError()
+
+
+class ServerObjectNestedMethodMetaClass(ServerMethodMetaClass):
+    def __new__(cls, name, bases, attrs):
+        new_class = super(ServerObjectNestedMethodMetaClass, cls).__new__(cls, name, bases, attrs)
+        if new_class.ClientMethod is not NotImplemented:
+            new_class.model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.model]
+            new_class.nested_model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.nested_model]
+
+
+class ServerObjectNestedMethod(ServerMethod, metaclass=ServerObjectNestedMethodMetaClass):
+    model = NotImplemented
+    nested_model = NotImplemented
+
+    def process_post(self):
+        raise NotImplementedError()
+
+    def process_get(self):
+        raise NotImplementedError()
+
+
+# way to call the api internally
 class InternalDispatch(object):
     def __init__(self):
         self.server_views = {}
@@ -261,9 +326,24 @@ class InternalDispatch(object):
                      'name': client_method.names[http_method], 'form': client_method.get_input_form(http_method)})
         self.urlpatterns = patterns('', *self.urls)
 
-    def internal_call(self, request, client_method, http_method, dirty_data, raise_exception=True):
+    def internal_call(self, request, http_method, client_method, dirty_data, raise_exception=True):
         dirty_data = dirty_data.copy()
-        server_view = self.server_views.get(client_method)
+        if isinstance(client_method, str):
+            server_view = self.server_views.get(METHODS[client_method])
+        else:
+            server_view = self.server_views.get(client_method)
         if not server_view:
             raise http.Http404('Invalid client method: "%r"' % client_method)
         return server_view.internal_dispatch(request, http_method, dirty_data, raise_exception=raise_exception)
+
+    def internal_post(self, request, client_method, dirty_data, raise_exception=True):
+        return self.internal_call(request, 'POST', client_method, dirty_data, raise_exception=raise_exception)
+
+    def internal_get(self, request, client_method, dirty_data, raise_exception=True):
+        return self.internal_call(request, 'GET', client_method, dirty_data, raise_exception=raise_exception)
+
+    def internal_put(self, request, client_method, dirty_data, raise_exception=True):
+        return self.internal_call(request, 'PUT', client_method, dirty_data, raise_exception=raise_exception)
+
+    def internal_delete(self, request, client_method, dirty_data, raise_exception=True):
+        return self.internal_call(request, 'DELETE', client_method, dirty_data, raise_exception=raise_exception)

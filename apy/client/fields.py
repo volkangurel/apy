@@ -12,7 +12,6 @@ class BaseField(object):
                  description=None,
                  is_selectable=True,  # whether it can be specified in a "fields" argument
                  is_default=False,  # whether it gets fetched by default
-                 required_fields=None,  # other fields that getting data for this field requires
                  child_field=None,  # for array and object fields
                  # permissions
                  read_access=None,
@@ -30,7 +29,6 @@ class BaseField(object):
         self.description = description
         self.is_selectable = is_selectable
         self.is_default = is_default
-        self.required_fields = required_fields
         self.child_field = child_field
         # permissions
         self.create_access = create_access
@@ -137,3 +135,10 @@ class NestedField(BaseField):
             else:
                 self._model = self.model_or_name
         return self._model
+
+    def to_python(self, val):
+        from .models import BaseClientModel
+        if not isinstance(val, BaseClientModel):
+            # TODO handle case where val is a dict describing the object
+            raise Exception('invalid nested value "%r"' % val)
+        return val

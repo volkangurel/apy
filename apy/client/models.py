@@ -12,8 +12,8 @@ def get_model_fields(bases, attrs):
     model_fields.sort(key=lambda x: x[1].creation_counter)
 
     for base in bases[::-1]:
-        if hasattr(base, '_fields'):
-            model_fields = (list((k, v) for k, v in base._fields.items()  # pylint: disable=W0212
+        if hasattr(base, 'base_fields'):
+            model_fields = (list((k, v) for k, v in base.base_fields.items()  # pylint: disable=W0212
                                  if k not in model_fields and k not in attrs)
                             + model_fields)
 
@@ -39,8 +39,8 @@ class BaseClientModelMetaClass(type):
         attrs['lowercase_name'] = attrs.get('lowercase_name') or camel_case_to_snake_case(name)
         attrs['url_name'] = attrs.get('url_name') or attrs['plural_display_name'].lower().replace(' ', '-')
         fields = get_model_fields(bases, attrs)
-        attrs['_fields'] = fields
-        attrs['_field_indexes'] = {k: ix for ix, k in enumerate(attrs['_fields'])}
+        attrs['base_fields'] = fields
+        attrs['_field_indexes'] = {k: ix for ix, k in enumerate(attrs['base_fields'])}
         attrs['class_creation_counter'] = BaseClientModelMetaClass.creation_counter
         BaseClientModelMetaClass.creation_counter += 1
         new_class = super(BaseClientModelMetaClass, cls).__new__(cls, name, bases, attrs)
@@ -66,16 +66,15 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     url_name = None
 
     id_field = 'id'
-    _fields = None
+    base_fields = None
     _field_indexes = None
 
     def __new__(cls, **kwargs):
         vals = []
-        for k, f in cls._fields.items():
+        for k, f in cls.base_fields.items():
             v = kwargs.pop(k, None)
             if v is None and f.required:
                 raise ValueError('need to pass in %s to create a %s' % (k, cls.__name__))
-            # TODO handle nested fields
             vals.append(f.to_python(v))
         if kwargs:
             raise ValueError('invalid keys passed in to %s: %s' % (cls.__name__, ', '.join(kwargs)))
@@ -84,7 +83,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
         return self
 
     def _field_repr_iter(self):
-        for (k, f), v in zip(self._fields.items(), self):
+        for (k, f), v in zip(self.base_fields.items(), self):
             if v is None: continue
             if isinstance(f, apy_fields.NestedField):
                 yield k
@@ -105,7 +104,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     def __setitem__(self, key, value):
         if self.changes is None:
             self.changes = {}
-        field = self._fields.get(key)
+        field = self.base_fields.get(key)
         if field is None:
             raise KeyError('cannot set %s, no such field in %s' % (key, self.__class__.__name__))
         if not field.modifiable:
@@ -114,11 +113,11 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     @classmethod
     def get_selectable_fields(cls):
-        return [QueryField(k, v, None, None) for k, v in cls._fields.items() if v.is_selectable]
+        return [QueryField(k, v, None, None) for k, v in cls.base_fields.items() if v.is_selectable]
 
     @classmethod
     def get_default_fields(cls):
-        return [QueryField(k, v, None, None) for k, v in cls._fields.items() if v.is_default]
+        return [QueryField(k, v, None, None) for k, v in cls.base_fields.items() if v.is_default]
 
     @classmethod
     def parse_query_fields(cls, query_fields, ignore_invalid_fields=False, use_generic_fields=False):
@@ -143,21 +142,21 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
             m = nested_field_re.match(qf) or sub_fields_re.match(qf) or formatted_field_re.match(qf)
             if m:
                 qf = m.group('field')
-            if qf not in cls._fields:
+            if qf not in cls.base_fields:
                 if use_generic_fields:
-                    sub_fields = None
-                    if m:
-                        sub_fields = cls.parse_query_fields(m.group('sub_fields'), use_generic_fields=True)
+                    sub_fields = (m and cls.parse_query_fields(m.group('sub_fields'), use_generic_fields=True)
+                                  or cls.get_default_fields())
                     fields.append(QueryField(qf, None, sub_fields, None))
                 else:
                     invalid_fields.append(qf)
                 continue
-            field = cls._fields[qf]
+            field = cls.base_fields[qf]
             if not field.is_selectable:
                 invalid_fields.append(qf)
                 continue
             if isinstance(field, apy_fields.NestedField):
-                sub_fields = m and field.get_model(cls).parse_query_fields(m.group('sub_fields'))
+                sub_fields = (m and field.get_model(cls).parse_query_fields(m.group('sub_fields'))
+                              or field.get_model(cls).get_default_fields())
                 fields.append(QueryField(qf, field, sub_fields, None))
             elif m and m.groupdict().get('format'):
                 format_ = m.group('format')
@@ -174,12 +173,12 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     # form utils
     @classmethod
     def get_id_form_field(cls):
-        return forms.ModelFieldField(cls._fields[cls.id_field])
+        return forms.ModelFieldField(cls.base_fields[cls.id_field])
 
     @classmethod
     def get_create_form(cls):
         form_fields = {cls.id_field: cls.get_id_form_field()}
-        for k, f in cls._fields.items():
+        for k, f in cls.base_fields.items():
             if k not in form_fields and (f.required or f.modifiable):
                 form_fields[k] = forms.ModelFieldField(f)
         return type('PostForm', (forms.MethodForm,), form_fields)
@@ -192,8 +191,8 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     @classmethod
     def get_read_many_form(cls):
-        form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls._fields[cls.id_field])}
-        for k, f in cls._fields.items():
+        form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls.base_fields[cls.id_field])}
+        for k, f in cls.base_fields.items():
             if f.is_query_filter:
                 form_fields[k] = forms.ModelFieldField(f)
         form_fields['fields'] = forms.FieldsField(cls)
@@ -202,7 +201,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     @classmethod
     def get_nested_read_form(cls, nested_model):
         form_fields = {cls.id_field: cls.get_id_form_field()}
-        for k, f in nested_model._fields.items():  # pylint: disable=W0212
+        for k, f in nested_model.base_fields.items():
             if f.is_query_filter:
                 form_fields[k] = forms.ModelFieldField(f)
         form_fields['fields'] = forms.FieldsField(nested_model)
@@ -211,7 +210,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     @classmethod
     def get_modify_form(cls):
         form_fields = {cls.id_field: cls.get_id_form_field()}
-        for k, f in cls._fields.items():
+        for k, f in cls.base_fields.items():
             if f.modifiable:
                 form_fields[k] = forms.ModelFieldField(f)
         return type('PutForm', (forms.ModifyForm,), form_fields)
@@ -223,7 +222,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     @classmethod
     def get_delete_many_form(cls):
-        form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls._fields[cls.id_field])}
+        form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls.base_fields[cls.id_field])}
         return type('DeleteForm', (forms.MethodForm,), form_fields)
 
 
