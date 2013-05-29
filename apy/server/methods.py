@@ -189,12 +189,8 @@ class ServerMethod(object, metaclass=ServerMethodMetaClass):
                 k = k[:-2]
             data[k] = v
 
-    @classmethod
-    def get_input_form(cls, method):
-        return getattr(cls.ClientMethod, '%sForm' % method.capitalize())
-
     def clean_data(self, dirty_data):
-        form = self.get_input_form(self.method)
+        form = self.ClientMethod.get_input_form(self.method)
         if form:
             if getattr(self.request, 'FILES'):
                 f = form(dirty_data, self.request.FILES)

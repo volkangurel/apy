@@ -51,9 +51,6 @@ class BaseClientModelMetaClass(type):
 
 
 QueryField = collections.namedtuple('QueryField', ['key', 'field', 'sub_fields', 'format'])
-nested_field_re = re.compile(r'(?P<field>[^(/]+)/(?P<sub_fields>.+)')
-sub_fields_re = re.compile(r'(?P<field>[^(/]+)\((?P<sub_fields>.+)\)')
-formatted_field_re = re.compile(r'(?P<field>[^(/]+)\.(?P<format>.+)')
 
 
 class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
@@ -120,62 +117,11 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     def get_default_fields(cls):
         return [QueryField(k, v, None, None) for k, v in cls.base_fields.items() if v.is_default]
 
-    @classmethod
-    def parse_query_fields(cls, query_fields, ignore_invalid_fields=False, use_generic_fields=False):
-        # credit for fields format: https://developers.google.com/blogger/docs/2.0/json/performance
-        query_fields = query_fields.replace(' ', '').lower()
-        split_fields = ['']
-        open_brackets = 0
-        for c in query_fields:
-            if c == ',' and open_brackets == 0:
-                split_fields.append('')
-            else:
-                split_fields[-1] += c
-                if c == '(':
-                    open_brackets += 1
-                elif c == ')':
-                    open_brackets -= 1
-        fields = []
-        invalid_fields = []
-        for qf in split_fields:
-            if not qf.strip(): continue
-            qf = qf.strip().lower()
-            m = nested_field_re.match(qf) or sub_fields_re.match(qf) or formatted_field_re.match(qf)
-            if m:
-                qf = m.group('field')
-            if qf not in cls.base_fields:
-                if use_generic_fields:
-                    sub_fields = (m and cls.parse_query_fields(m.group('sub_fields'), use_generic_fields=True)
-                                  or cls.get_default_fields())
-                    fields.append(QueryField(qf, None, sub_fields, None))
-                else:
-                    invalid_fields.append(qf)
-                continue
-            field = cls.base_fields[qf]
-            if not field.is_selectable:
-                invalid_fields.append(qf)
-                continue
-            if isinstance(field, apy_fields.NestedField):
-                sub_fields = (m and field.get_model(cls).parse_query_fields(m.group('sub_fields'))
-                              or field.get_model(cls).get_default_fields())
-                fields.append(QueryField(qf, field, sub_fields, None))
-            elif m and m.groupdict().get('format'):
-                format_ = m.group('format')
-                if format_ not in field.formats:
-                    raise ValidationError('invalid format "%s" on field "%s"' % (format_, qf))
-                fields.append(QueryField(qf, field, None, format_))
-            else:
-                fields.append(QueryField(qf, field, None, None))
-        if invalid_fields and not ignore_invalid_fields:
-            plural = 's' if len(invalid_fields) > 1 else ''
-            raise ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
-        return fields
-
     # form utils
     @classmethod
     def get_id_form_field(cls):
         if 'id' not in cls.base_fields: raise Exception(cls.base_fields)
-        return forms.ModelFieldField(cls.base_fields[cls.id_field])
+        return forms.ModelFieldField(cls.base_fields[cls.id_field], help_text='ID')
 
     @classmethod
     def get_create_form(cls):
@@ -193,7 +139,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     @classmethod
     def get_read_many_form(cls):
-        form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls.base_fields[cls.id_field])}
+        form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls.base_fields[cls.id_field], help_text='IDs')}
         for k, f in cls.base_fields.items():
             if f.is_query_filter:
                 form_fields[k] = forms.ModelFieldField(f)
@@ -224,14 +170,9 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     @classmethod
     def get_delete_many_form(cls):
-        form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls.base_fields[cls.id_field])}
+        form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls.base_fields[cls.id_field], help_text='IDs')}
         return type('DeleteForm', (forms.MethodForm,), form_fields)
 
 
-class BaseClientRelation(tuple):  #TODO
-    pass
-
-
-# exceptions
-class ValidationError(Exception):
+class BaseClientRelation(BaseClientModel):  #TODO
     pass

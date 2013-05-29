@@ -42,6 +42,10 @@ class ClientMethod(object, metaclass=ClientMethodMetaClass):
         return self.url_pattern_re.sub(self.url_pattern_repl, self.url_pattern)
 
     @classmethod
+    def get_input_form(cls, method):
+        return getattr(cls, '%sForm' % method.capitalize())
+
+    @classmethod
     def _call(cls, http_method, data):
         # TODO use the right form to check data before sending
         # send data
@@ -156,7 +160,7 @@ class ClientObjectNestedMethod(ClientMethod, metaclass=ClientObjectNestedMethodM
     nested_model = NotImplemented
 
 
-def add_nested_methods_for_model(lcls, model, fields):
+def add_nested_methods_for_model(lcls, category, model, fields):
     for field in fields:
         cname = '%s%sAssociationMethod' % (model.__name__, field.capitalize())
-        lcls[cname] = type(cname, (ClientObjectNestedMethod,), {'model': model, 'nested_field': field, })
+        lcls[cname] = type(cname, (ClientObjectNestedMethod,), {'category': category, 'model': model, 'nested_field': field})
