@@ -119,13 +119,17 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     # form utils
     @classmethod
+    def get_id_field_name(cls):
+        return '%s_%s' % (cls.lowercase_name, cls.id_field)
+
+    @classmethod
     def get_id_form_field(cls):
         if 'id' not in cls.base_fields: raise Exception(cls.base_fields)
         return forms.ModelFieldField(cls.base_fields[cls.id_field], help_text='ID')
 
     @classmethod
     def get_create_form(cls):
-        form_fields = {cls.id_field: cls.get_id_form_field()}
+        form_fields = {cls.get_id_field_name(): cls.get_id_form_field()}
         for k, f in cls.base_fields.items():
             if k not in form_fields and (f.required or f.modifiable):
                 form_fields[k] = forms.ModelFieldField(f)
@@ -133,13 +137,13 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     @classmethod
     def get_read_form(cls):
-        form_fields = {cls.id_field: cls.get_id_form_field(),
+        form_fields = {cls.get_id_field_name(): cls.get_id_form_field(),
                        'fields': forms.FieldsField(cls), }
         return type('GetForm', (forms.MethodForm,), form_fields)
 
     @classmethod
     def get_read_many_form(cls):
-        form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls.base_fields[cls.id_field], help_text='IDs')}
+        form_fields = {'%ss' % cls.get_id_field_name(): forms.ModelFieldListField(cls.base_fields[cls.id_field], help_text='IDs')}
         for k, f in cls.base_fields.items():
             if f.is_query_filter:
                 form_fields[k] = forms.ModelFieldField(f)
@@ -148,7 +152,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     @classmethod
     def get_nested_read_form(cls, nested_model):
-        form_fields = {cls.id_field: cls.get_id_form_field()}
+        form_fields = {cls.get_id_field_name(): cls.get_id_form_field()}
         for k, f in nested_model.base_fields.items():
             if f.is_query_filter:
                 form_fields[k] = forms.ModelFieldField(f)

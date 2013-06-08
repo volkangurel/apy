@@ -39,8 +39,8 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
     ClientModel = NotImplemented
     base_fields = None
 
-    def __init__(self, **data):
-        self.data = data
+    def __init__(self, *args, **kwargs):
+        self.data = dict(*args, **kwargs)
         self.client_data = None
 
     def get_id(self):

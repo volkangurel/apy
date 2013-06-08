@@ -138,7 +138,7 @@ class NestedField(BaseField):
 
     def to_python(self, val):
         from .models import BaseClientModel
-        if not isinstance(val, BaseClientModel):
+        if val is not None and not isinstance(val, BaseClientModel):
             # TODO handle case where val is a dict describing the object
             raise Exception('invalid nested value "%r"' % val)
         return val
