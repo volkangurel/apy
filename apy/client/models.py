@@ -69,14 +69,20 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     def __new__(cls, **kwargs):
         vals = []
+        keys = []
         for k, f in cls.base_fields.items():
-            v = kwargs.pop(k, None)
+            if k in kwargs:
+                v = kwargs.pop(k)
+                keys.append(k)
+            else:
+                v = None
             if v is None and f.required:
                 raise ValueError('need to pass in %s to create a %s' % (k, cls.__name__))
             vals.append(f.to_python(v))
         if kwargs:
             raise ValueError('invalid keys passed in to %s: %s' % (cls.__name__, ', '.join(kwargs)))
         self = tuple.__new__(cls, vals)
+        self.keys = keys
         self.changes = None
         return self
 
@@ -108,6 +114,12 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
         if not field.modifiable:
             raise ValueError('cannot set %s, field not modifiable in %s' % (key, self.__class__.__name__))
         self.changes[key] = field.to_python(value)
+
+    def to_json(self, request):
+        d = collections.OrderedDict()
+        for key in self.keys:
+            d[key] = self.base_fields[key].to_json(request, self[key])
+        return d
 
     @classmethod
     def get_selectable_fields(cls):

@@ -220,7 +220,8 @@ class ServerMethod(object, metaclass=ServerMethodMetaClass):
         if response_format not in ['json']:
             response_format = DEFAULT_RESPONSE_FORMAT  # TODO add support for xml
         if response_format == 'json':
-            formatted_response = json.dumps(response)
+            formatted_response = json_encode(response, self.request)
+            # raise Exception(formatted_response)
             mimetype = 'application/json'
             callback = self.data and self.data.get('callback')
             if callback:
@@ -228,6 +229,16 @@ class ServerMethod(object, metaclass=ServerMethodMetaClass):
                 mimetype = 'text/javascript'
 
         return http.HttpResponse(formatted_response, status=http_status_code, mimetype=mimetype)
+
+
+def json_encode(response, request):
+    data = response.get('data')
+    if data is not None:
+        if isinstance(data, list):
+            response['data'] = [d.to_json(request) for d in data]
+        else:
+            response['data'] = data.to_json(request)
+    return json.dumps(response)
 
 
 # errors

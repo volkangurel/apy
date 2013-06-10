@@ -87,6 +87,11 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
         return cls.to_client(request, cls.find(**kwargs), query_fields=query_fields)
 
     @classmethod
+    def find_one_for_client(cls, request, query_fields, **kwargs):
+        rows = cls.find_for_client(request, query_fields, **kwargs)
+        return rows[0] if rows else None
+
+    @classmethod
     def insert(cls, **kwargs):
         raise NotImplementedError()
 
@@ -161,6 +166,10 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
         if invalid_fields and not ignore_invalid_fields:
             plural = 's' if len(invalid_fields) > 1 else ''
             raise ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
+        # make sure id field is always there
+        id_field = cls.ClientModel.id_field
+        if id_field not in [f.key for f in fields]:
+            fields.insert(0, QueryField(id_field, cls.ClientModel.base_fields[id_field], None, None))
         return fields
 
 

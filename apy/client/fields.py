@@ -51,7 +51,7 @@ class BaseField(object):
             return val
         return self.python_type(val)  # pylint: disable=E1102
 
-    def to_json(self, request, value, field):  # pylint: disable=W0613
+    def to_json(self, request, value):  # pylint: disable=W0613
         return value
 
 
@@ -69,7 +69,7 @@ class LongField(BaseField):
     json_type = 'string'
     python_type = int
 
-    def to_json(self, request, value, field):
+    def to_json(self, request, value):
         if not value: return None
         return str(value)
 
@@ -88,7 +88,7 @@ class ArrayField(BaseField):
     json_type = 'array'
     python_type = tuple
 
-    def to_json(self, request, value, field):
+    def to_json(self, request, value):
         if not value: return []
         return [self.child_field.to_json(request, v, field) for v in value] if self.child_field else value
 
@@ -97,7 +97,7 @@ class ObjectField(BaseField):
     json_type = 'object'
     python_type = dict
 
-    def to_json(self, request, value, field):
+    def to_json(self, request, value):
         if not value: return {}
         if isinstance(self.child_field, dict):
             return {k: self.child_field[k].get_json_value(request, v, field) for k, v in value.items()}
@@ -111,7 +111,7 @@ class ObjectField(BaseField):
 class DateTimeField(IntegerField):
     python_type = datetime.datetime
 
-    def to_json(self, request, value, field):
+    def to_json(self, request, value):
         if not value: return None
         return utils.datetime_to_ms(value)
 
