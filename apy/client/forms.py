@@ -38,7 +38,7 @@ class DateTimeField(IntegerField):
 
 class ModelFieldField(StringField):
     def __init__(self, field, **kwargs):
-        kwargs['required'] = field.required
+        kwargs.setdefault('required', field.required)
         super(ModelFieldField, self).__init__(**kwargs)
         self.field = field
 
@@ -49,7 +49,7 @@ class ModelFieldField(StringField):
 
 class ModelFieldListField(StringField):
     def __init__(self, field, **kwargs):
-        kwargs['required'] = field.required
+        kwargs.setdefault('required', field.required)
         super(ModelFieldListField, self).__init__(**kwargs)
         self.field = field
 

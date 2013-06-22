@@ -1,8 +1,6 @@
 import collections
-import re
 
-from apy.client.models import MODELS, QueryField
-from apy.client.fields import NestedField
+from apy.client.models import MODELS
 
 from . import fields as apy_fields
 
@@ -42,6 +40,9 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
     def __init__(self, *args, **kwargs):
         self.data = dict(*args, **kwargs)
         self.client_data = None
+
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__.__name__, ', '.join(self.data.keys()))
 
     def get_id(self):
         return self.data[self.ClientModel.id_field]
@@ -112,69 +113,6 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
     @classmethod
     def check_read_permissions(cls, request, client_data):
         raise NotImplementedError()
-
-    # parse
-    _nested_field_re = re.compile(r'(?P<field>[^(/]+)/(?P<sub_fields>.+)')
-    _sub_fields_re = re.compile(r'(?P<field>[^(/]+)\((?P<sub_fields>.+)\)')
-    _formatted_field_re = re.compile(r'(?P<field>[^(/]+)\.(?P<format>.+)')
-    @classmethod
-    def parse_query_fields(cls, query_fields, ignore_invalid_fields=False, use_generic_fields=False):
-        # credit for fields format: https://developers.google.com/blogger/docs/2.0/json/performance
-        query_fields = query_fields.replace(' ', '').lower()
-        split_fields = ['']
-        open_brackets = 0
-        for c in query_fields:
-            if c == ',' and open_brackets == 0:
-                split_fields.append('')
-            else:
-                split_fields[-1] += c
-                if c == '(':
-                    open_brackets += 1
-                elif c == ')':
-                    open_brackets -= 1
-        fields = []
-        invalid_fields = []
-        for qf in split_fields:
-            if not qf.strip(): continue
-            qf = qf.strip().lower()
-            m = cls._nested_field_re.match(qf) or cls._sub_fields_re.match(qf) or cls._formatted_field_re.match(qf)
-            if m:
-                qf = m.group('field')
-            if qf not in cls.ClientModel.base_fields:
-                if use_generic_fields:
-                    sub_fields = (m and cls.parse_query_fields(m.group('sub_fields'), use_generic_fields=True)
-                                  or cls.ClientModel.get_default_fields())
-                    fields.append(QueryField(qf, None, sub_fields, None))
-                else:
-                    invalid_fields.append(qf)
-                continue
-            field = cls.ClientModel.base_fields[qf]
-            if not field.is_selectable:
-                invalid_fields.append(qf)
-                continue
-            if isinstance(field, NestedField):
-                sub_fields = (m and field.get_model(cls).parse_query_fields(m.group('sub_fields'))
-                              or field.get_model(cls).get_default_fields())
-                fields.append(QueryField(qf, field, sub_fields, None))
-            elif m and m.groupdict().get('format'):
-                format_ = m.group('format')
-                if format_ not in field.formats:
-                    raise ValidationError('invalid format "%s" on field "%s"' % (format_, qf))
-                fields.append(QueryField(qf, field, None, format_))
-            else:
-                fields.append(QueryField(qf, field, None, None))
-        if invalid_fields and not ignore_invalid_fields:
-            plural = 's' if len(invalid_fields) > 1 else ''
-            raise ValidationError('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
-        # make sure id field is always there
-        id_field = cls.ClientModel.id_field
-        if id_field not in [f.key for f in fields]:
-            fields.insert(0, QueryField(id_field, cls.ClientModel.base_fields[id_field], None, None))
-        return fields
-
-
-class BaseServerRelation(object):
-    pass
 
 
 # exceptions

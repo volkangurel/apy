@@ -29,10 +29,10 @@ class BaseNestedField(BaseField):  # pylint: disable=W0223
         self.model_or_name = model_or_name
 
     def get_model(self, owner):  # pylint: disable=W0613
-        # owner is the model that has this field
+        # owner is the model that contains this field
         if isinstance(self.model_or_name, str):
-            from .models import MODELS
-            return MODELS[self.model_or_name]
+            from .models import SERVER_MODELS
+            return SERVER_MODELS[self.model_or_name]
         else:
             return self.model_or_name
 
@@ -40,15 +40,15 @@ class BaseNestedField(BaseField):  # pylint: disable=W0223
 class NestedIdField(BaseNestedField):
     # field that represents a model nested within a wrapping model, linked by an id
     def __init__(self, model_or_name, id_field, **kwargs):
-        super(NestedIdField, self).__init__(model_or_name, **kwargs)
+        super(NestedIdField, self).__init__(model_or_name, required_fields=[id_field], **kwargs)
         self.id_field = id_field
 
     def to_client(self, request, owner, query_field, objects):
-        ids = {obj.get_id() for obj in objects}
+        ids = {obj.data[self.id_field] for obj in objects if self.id_field in obj.data}
         nested_objects = {d.get_id(): d for d in self.get_model(owner).find_for_client
                           (request, ids=ids, query_fields=query_field.sub_fields)}
         for obj in objects:
-            obj.client_data[query_field.key] = nested_objects.get(query_field.key)
+            obj.client_data[query_field.key] = nested_objects.get(obj.data[self.id_field])
 
 
 class RelationIdField(BaseNestedField):  # pylint: disable=W0223
@@ -61,7 +61,7 @@ class RelationIdField(BaseNestedField):  # pylint: disable=W0223
     def to_client(self, request, owner, query_field, objects):
         ids = {obj.get_id() for obj in objects}
         related_objects = self.get_model(owner).find_for_client(
-            request, condition={self.filter_id_field: {'$id': ids}}, query_fields=query_field.sub_fields)
+            request, condition={self.filter_id_field: {'$in': ids}}, query_fields=query_field.sub_fields)
         data = collections.defaultdict(list)
         for obj in related_objects:
             data[obj[self.filter_id_field]].append(obj)
@@ -78,6 +78,6 @@ class AssociationField(BaseNestedField):
     def to_client(self, request, owner, query_field, objects):
         method = getattr(self.get_model(owner), self.method)
         ids = {obj.get_id() for obj in objects}
-        data = method(request, ids, fields=query_field.sub_fields)
+        data = method(request, ids, query_field.sub_fields)
         for obj in objects:
             obj.client_data[query_field.key] = data.get(obj.get_id(), [])

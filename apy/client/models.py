@@ -115,6 +115,9 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
             raise ValueError('cannot set %s, field not modifiable in %s' % (key, self.__class__.__name__))
         self.changes[key] = field.to_python(value)
 
+    def get_id(self):
+        return self[self.id_field]
+
     def to_json(self, request):
         d = collections.OrderedDict()
         for key in self.keys:
@@ -155,10 +158,11 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     @classmethod
     def get_read_many_form(cls):
-        form_fields = {'%ss' % cls.get_id_field_name(): forms.ModelFieldListField(cls.base_fields[cls.id_field], help_text='IDs')}
+        form_fields = {'%ss' % cls.get_id_field_name():
+                       forms.ModelFieldListField(cls.base_fields[cls.id_field], required=False, help_text='IDs')}
         for k, f in cls.base_fields.items():
             if f.is_query_filter:
-                form_fields[k] = forms.ModelFieldField(f)
+                form_fields[k] = forms.ModelFieldField(f, required=False)
         form_fields['fields'] = forms.FieldsField(cls)
         return type('GetForm', (forms.OptionalLimitOffsetForm,), form_fields)
 
@@ -189,6 +193,70 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
         form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls.base_fields[cls.id_field], help_text='IDs')}
         return type('DeleteForm', (forms.MethodForm,), form_fields)
 
+    # parse
+    @classmethod
+    def parse_query_fields(cls, fields_string, ignore_invalid_fields=False, use_generic_fields=False):
+        model = None if use_generic_fields else cls
+        return parse_query_fields(fields_string, model=model, ignore_invalid_fields=ignore_invalid_fields)
+
+
+_nested_field_re = re.compile(r'(?P<field>[^(/]+)/(?P<sub_fields>.+)')
+_sub_fields_re = re.compile(r'(?P<field>[^(/]+)\((?P<sub_fields>.+)\)')
+_formatted_field_re = re.compile(r'(?P<field>[^(/]+)\.(?P<format>.+)')
+def parse_query_fields(fields_string, model=None, ignore_invalid_fields=False):
+    # credit for fields format: https://developers.google.com/blogger/docs/2.0/json/performance
+    fields_string = fields_string.replace(' ', '').lower()
+    split_fields = ['']
+    open_brackets = 0
+    for c in fields_string:
+        if c == ',' and open_brackets == 0:
+            split_fields.append('')
+        else:
+            split_fields[-1] += c
+            if c == '(':
+                open_brackets += 1
+            elif c == ')':
+                open_brackets -= 1
+    fields = []
+    invalid_fields = []
+    for sf in split_fields:
+        if not sf.strip(): continue
+        sf = sf.strip().lower()
+        m = _nested_field_re.match(sf) or _sub_fields_re.match(sf) or _formatted_field_re.match(sf)
+        if m:
+            sf = m.group('field')
+        if model is None:
+            sub_fields = m and parse_query_fields(m.group('sub_fields'))
+            fields.append(QueryField(sf, None, sub_fields, None))
+        elif sf not in model.base_fields:
+            invalid_fields.append(sf)
+        else:
+            field = model.base_fields[sf]
+            if not field.is_selectable:
+                invalid_fields.append(sf)
+                continue
+            if isinstance(field, apy_fields.NestedField):
+                sub_fields = None
+                if m:
+                    nested_model = field.get_model(model)
+                    sub_fields = nested_model.parse_query_fields(m.group('sub_fields'))
+                fields.append(QueryField(sf, field, sub_fields, None))
+            elif m and m.groupdict().get('format'):
+                format_ = m.group('format')
+                if format_ not in field.formats:
+                    raise Exception('invalid format "%s" on field "%s"' % (format_, sf))
+                fields.append(QueryField(sf, field, None, format_))
+            else:
+                fields.append(QueryField(sf, field, None, None))
+    if invalid_fields and not ignore_invalid_fields:
+        plural = 's' if len(invalid_fields) > 1 else ''
+        raise Exception('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
+    # make sure id field is always there
+    if model is not None and model.id_field and model.id_field not in [f.key for f in fields]:
+        fields.insert(0, QueryField(model.id_field, model.base_fields[model.id_field], None, None))
+    return fields
+
+
 
 class BaseClientRelation(BaseClientModel):  #TODO
-    pass
+    id_field = None

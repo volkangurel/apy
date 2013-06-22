@@ -90,7 +90,7 @@ class ArrayField(BaseField):
 
     def to_json(self, request, value):
         if not value: return []
-        return [self.child_field.to_json(request, v, field) for v in value] if self.child_field else value
+        return [self.child_field.to_json(request, v) for v in value] if self.child_field else value
 
 
 class ObjectField(BaseField):
@@ -100,9 +100,9 @@ class ObjectField(BaseField):
     def to_json(self, request, value):
         if not value: return {}
         if isinstance(self.child_field, dict):
-            return {k: self.child_field[k].get_json_value(request, v, field) for k, v in value.items()}
+            return {k: self.child_field[k].get_json_value(request, v) for k, v in value.items()}
         elif isinstance(self.child_field, tuple) and len(self.child_field) == 2:
-            return {self.child_field[0].get_json_value(request, k, field): self.child_field[1].get_json_value(request, v, field)
+            return {self.child_field[0].get_json_value(request, k): self.child_field[1].get_json_value(request, v)
                     for k, v in value.items()}
         else:
             return value
@@ -142,3 +142,6 @@ class NestedField(BaseField):
             # TODO handle case where val is a dict describing the object
             raise Exception('invalid nested value "%r"' % val)
         return val
+
+    def to_json(self, request, value):  # pylint: disable=W0613
+        return value.to_json(request)
