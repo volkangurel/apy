@@ -111,7 +111,7 @@ class ClientObjectMethodMetaClass(ClientMethodMetaClass):
     def __new__(cls, name, bases, attrs):
         if attrs.get('model') is not NotImplemented:
             model = attrs['model']
-            attrs.setdefault('id_field', '%s_id' % model.lowercase_name)
+            attrs.setdefault('id_field', model.id_field)
             attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)' % (model.url_name, model.id_field)
             names = attrs.setdefault('names', {})
             names.setdefault('GET', 'Get %s' % model.display_name)
@@ -138,7 +138,7 @@ class ClientObjectNestedMethodMetaClass(ClientMethodMetaClass):
             nested_field = attrs['nested_field']
             field = model.base_fields[nested_field]  # pylint: disable=W0212
             attrs['nested_model'] = nested_model = field.get_model(model)
-            attrs.setdefault('id_field', '%s_id' % model.lowercase_name)
+            attrs.setdefault('id_field', model.id_field)
             attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)/%s' % (model.url_name, attrs['id_field'], nested_field)
             names = attrs.setdefault('names', {})
             attrs.setdefault('http_method_names', ['GET'] if nested_model.readonly else ['GET', 'POST'])

@@ -6,9 +6,11 @@ class BaseField(object):
 
     def __init__(self,
                  required_fields=None,  # other fields that getting data for this field requires
+                 in_place=False,
                  ):
         super(BaseField, self).__init__()
         self.required_fields = required_fields
+        self.in_place = in_place
 
         self.creation_counter = BaseField.creation_counter
         BaseField.creation_counter += 1

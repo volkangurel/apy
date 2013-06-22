@@ -78,7 +78,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
                 v = None
             if v is None and f.required:
                 raise ValueError('need to pass in %s to create a %s' % (k, cls.__name__))
-            vals.append(f.to_python(v))
+            vals.append(f.to_client(v))
         if kwargs:
             raise ValueError('invalid keys passed in to %s: %s' % (cls.__name__, ', '.join(kwargs)))
         self = tuple.__new__(cls, vals)
@@ -113,7 +113,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
             raise KeyError('cannot set %s, no such field in %s' % (key, self.__class__.__name__))
         if not field.modifiable:
             raise ValueError('cannot set %s, field not modifiable in %s' % (key, self.__class__.__name__))
-        self.changes[key] = field.to_python(value)
+        self.changes[key] = field.to_client(value)
 
     def get_id(self):
         return self[self.id_field]
@@ -134,17 +134,13 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     # form utils
     @classmethod
-    def get_id_field_name(cls):
-        return '%s_%s' % (cls.lowercase_name, cls.id_field)
-
-    @classmethod
     def get_id_form_field(cls):
         if 'id' not in cls.base_fields: raise Exception(cls.base_fields)
         return forms.ModelFieldField(cls.base_fields[cls.id_field], help_text='ID')
 
     @classmethod
     def get_create_form(cls):
-        form_fields = {cls.get_id_field_name(): cls.get_id_form_field()}
+        form_fields = {cls.id_field: cls.get_id_form_field()}
         for k, f in cls.base_fields.items():
             if k not in form_fields and (f.required or f.modifiable):
                 form_fields[k] = forms.ModelFieldField(f)
@@ -152,13 +148,13 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     @classmethod
     def get_read_form(cls):
-        form_fields = {cls.get_id_field_name(): cls.get_id_form_field(),
+        form_fields = {cls.id_field: cls.get_id_form_field(),
                        'fields': forms.FieldsField(cls), }
         return type('GetForm', (forms.MethodForm,), form_fields)
 
     @classmethod
     def get_read_many_form(cls):
-        form_fields = {'%ss' % cls.get_id_field_name():
+        form_fields = {'%ss' % cls.id_field:
                        forms.ModelFieldListField(cls.base_fields[cls.id_field], required=False, help_text='IDs')}
         for k, f in cls.base_fields.items():
             if f.is_query_filter:
@@ -168,7 +164,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     @classmethod
     def get_nested_read_form(cls, nested_model):
-        form_fields = {cls.get_id_field_name(): cls.get_id_form_field()}
+        form_fields = {cls.id_field: cls.get_id_form_field()}
         for k, f in nested_model.base_fields.items():
             if f.is_query_filter:
                 form_fields[k] = forms.ModelFieldField(f)

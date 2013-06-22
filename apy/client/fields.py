@@ -44,6 +44,11 @@ class BaseField(object):
         self.creation_counter = BaseField.creation_counter
         BaseField.creation_counter += 1
 
+    # from python
+    def to_json(self, request, value):  # pylint: disable=W0613
+        return value
+
+    # from json
     def to_python(self, val):
         if val is None:
             return None
@@ -51,8 +56,9 @@ class BaseField(object):
             return val
         return self.python_type(val)  # pylint: disable=E1102
 
-    def to_json(self, request, value):  # pylint: disable=W0613
-        return value
+    # from server
+    def to_client(self, value):
+        return self.to_python(value)
 
 
 class BooleanField(BaseField):
@@ -119,6 +125,9 @@ class DateTimeField(IntegerField):
         if not value: return None
         return utils.ms_to_datetime(value)
 
+    def to_client(self, value):
+        return value
+
 
 class NestedField(BaseField):
 
@@ -138,10 +147,16 @@ class NestedField(BaseField):
 
     def to_python(self, val):
         from .models import BaseClientModel
-        if val is not None and not isinstance(val, BaseClientModel):
-            # TODO handle case where val is a dict describing the object
-            raise Exception('invalid nested value "%r"' % val)
+        if val is not None:
+            if not isinstance(val, (BaseClientModel, list)):
+                # TODO handle case where val is a dict describing the object
+                raise Exception('invalid nested value "%r"' % val)
+            if isinstance(val, list) and val and not isinstance(val[0], BaseClientModel):
+                raise Exception('invalid nested list "%r"' % val)
         return val
 
     def to_json(self, request, value):  # pylint: disable=W0613
-        return value.to_json(request)
+        if isinstance(value, list):
+            return [v.to_json(request) for v in value]
+        else:
+            return value.to_json(request)
