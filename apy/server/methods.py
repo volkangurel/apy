@@ -318,13 +318,13 @@ class ServerObjectNestedMethod(ServerMethod, metaclass=ServerObjectNestedMethodM
 # way to call the api internally
 class InternalDispatch(object):
     def __init__(self):
-        self.server_views = {}
+        self.server_methods = {}
         self.urls = []
         self.categories = collections.OrderedDict()
         for client_method, server_method in SERVER_METHODS.items():
             url_pattern = '^/%s$' % (client_method.url_pattern)
             view = server_method.as_view()
-            self.server_views[client_method] = view
+            self.server_methods[client_method] = server_method()
             self.urls.append(url(url_pattern, view))
             category_methods = self.categories.setdefault(client_method.category, [])
             for http_method in client_method.http_method_names:
@@ -339,12 +339,12 @@ class InternalDispatch(object):
     def internal_call(self, request, http_method, client_method, dirty_data, raise_exception=True):
         dirty_data = dirty_data.copy()
         if isinstance(client_method, str):
-            server_view = self.server_views.get(METHODS[client_method])
+            server_method = self.server_methods.get(METHODS[client_method])
         else:
-            server_view = self.server_views.get(client_method)
-        if not server_view:
+            server_method = self.server_methods.get(client_method)
+        if not server_method:
             raise http.Http404('Invalid client method: "%r"' % client_method)
-        return server_view.internal_dispatch(request, http_method, dirty_data, raise_exception=raise_exception)
+        return server_method.internal_dispatch(request, http_method, dirty_data, raise_exception=raise_exception)
 
     def internal_post(self, request, client_method, dirty_data, raise_exception=True):
         return self.internal_call(request, 'POST', client_method, dirty_data, raise_exception=raise_exception)

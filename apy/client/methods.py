@@ -3,6 +3,10 @@ import re
 METHODS = {}
 
 
+def snake_case_to_camel_case(name):
+    return ''.join(x.capitalize() for x in name.split('_'))
+
+
 class ClientMethodMetaClass(type):
     creation_counter = 0
 
@@ -90,11 +94,11 @@ class ClientObjectsMethodMetaClass(ClientMethodMetaClass):
     def __new__(cls, name, bases, attrs):
         if attrs.get('model') is not NotImplemented:
             model = attrs['model']
-            attrs['url_pattern'] = model.url_name
+            attrs['url_pattern'] = model.names['url']
             names = attrs.setdefault('names', {})
-            names.setdefault('POST', 'Create %s' % model.display_name)
-            names.setdefault('GET', 'Get %s' % model.plural_display_name)
-            names.setdefault('DELETE', 'Delete %s' % model.plural_display_name)
+            names.setdefault('POST', 'Create %s' % model.names['display'])
+            names.setdefault('GET', 'Get %s' % model.names['plural_display'])
+            names.setdefault('DELETE', 'Delete %s' % model.names['plural_display'])
             attrs.setdefault('PostForm', model.get_create_form())
             attrs.setdefault('GetForm', model.get_read_many_form())
             attrs.setdefault('DeleteForm', model.get_delete_many_form())
@@ -112,11 +116,11 @@ class ClientObjectMethodMetaClass(ClientMethodMetaClass):
         if attrs.get('model') is not NotImplemented:
             model = attrs['model']
             attrs.setdefault('id_field', model.id_field)
-            attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)' % (model.url_name, model.id_field)
+            attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)' % (model.names['url'], model.id_field)
             names = attrs.setdefault('names', {})
-            names.setdefault('GET', 'Get %s' % model.display_name)
-            names.setdefault('PUT', 'Modify %s' % model.display_name)
-            names.setdefault('DELETE', 'Delete %s' % model.display_name)
+            names.setdefault('GET', 'Get %s' % model.names['display'])
+            names.setdefault('PUT', 'Modify %s' % model.names['display'])
+            names.setdefault('DELETE', 'Delete %s' % model.names['display'])
             attrs.setdefault('GetForm', model.get_read_form())
             attrs.setdefault('PutForm', model.get_modify_form())
             attrs.setdefault('DeleteForm', model.get_delete_form())
@@ -139,13 +143,13 @@ class ClientObjectNestedMethodMetaClass(ClientMethodMetaClass):
             field = model.base_fields[nested_field]  # pylint: disable=W0212
             attrs['nested_model'] = nested_model = field.get_model(model)
             attrs.setdefault('id_field', model.id_field)
-            attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)/%s' % (model.url_name, attrs['id_field'], nested_field)
+            attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)/%s' % (model.names['url'], attrs['id_field'], nested_field)
             names = attrs.setdefault('names', {})
             attrs.setdefault('http_method_names', ['GET'] if nested_model.readonly else ['GET', 'POST'])
-            names.setdefault('GET', 'Get %s %s' % (model.display_name, nested_model.plural_display_name))
+            names.setdefault('GET', 'Get %s %s' % (model.names['display'], nested_model.names['plural_display']))
             attrs.setdefault('GetForm', model.get_nested_read_form(nested_model))
             if not nested_model.readonly:
-                names.setdefault('POST', 'Create %s in %s' % (nested_model.display_name, model.display_name))
+                names.setdefault('POST', 'Create %s in %s' % (nested_model.names['display'], model.names['display']))
                 attrs.setdefault('PostForm', nested_model.get_create_form())
         return super(ClientObjectNestedMethodMetaClass, cls).__new__(cls, name, bases, attrs)
 
@@ -162,5 +166,5 @@ class ClientObjectNestedMethod(ClientMethod, metaclass=ClientObjectNestedMethodM
 
 def add_nested_methods_for_model(lcls, category, model, fields):
     for field in fields:
-        cname = '%s%sAssociationMethod' % (model.__name__, field.capitalize())
+        cname = '%s%sAssociationMethod' % (model.__name__, snake_case_to_camel_case(field))
         lcls[cname] = type(cname, (ClientObjectNestedMethod,), {'category': category, 'model': model, 'nested_field': field})

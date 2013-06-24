@@ -20,7 +20,8 @@ class BaseField(object):
                  # updates
                  required=False,  # whether this field is required to create an object
                  modifiable=False,  # whether field is modifiable
-                 # id
+                 default_to_none=False,
+                 # other
                  is_id=False,
                  is_query_filter=False,
                  ):
@@ -37,6 +38,7 @@ class BaseField(object):
         # updates
         self.required = required
         self.modifiable = modifiable
+        self.default_to_none = default_to_none
         # queries
         self.is_id = is_id
         self.is_query_filter = is_query_filter

@@ -67,11 +67,20 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
                 server_field.to_client(request, cls, query_field, objects)
             else:
                 for obj in objects:
-                    obj.client_data[query_field.key] = obj.data[query_field.key]
+                    if query_field.key not in obj.data:
+                        if client_field.default_to_none:
+                            obj.client_data[query_field.key] = None
+                        else:
+                            raise KeyError("'%s' not in %r" % (query_field.key, obj.data))
+                    else:
+                        obj.client_data[query_field.key] = obj.data[query_field.key]
         for obj in objects:
             cls.check_read_permissions(request, obj.client_data)
 
         return [cls.ClientModel(**obj.client_data) for obj in objects]
+
+    def self_to_client(self, request, query_fields=None):
+        return self.to_client(request, [self], query_fields=query_fields)[0]
 
     # database operations
     @classmethod

@@ -34,10 +34,12 @@ class BaseClientModelMetaClass(type):
     creation_counter = 0
 
     def __new__(cls, name, bases, attrs):
-        attrs['display_name'] = attrs.get('display_name') or split_camel_case(name)
-        attrs['plural_display_name'] = attrs.get('plural_display_name') or attrs['display_name'] + 's'
-        attrs['lowercase_name'] = attrs.get('lowercase_name') or camel_case_to_snake_case(name)
-        attrs['url_name'] = attrs.get('url_name') or attrs['plural_display_name'].lower().replace(' ', '-')
+        names = attrs.get('names', {})
+        names.setdefault('display', split_camel_case(name))
+        names.setdefault('plural_display', names['display'] + 's')
+        names.setdefault('lowercase', camel_case_to_snake_case(name))
+        names.setdefault('url', names['plural_display'].lower().replace(' ', '-'))
+        attrs['names'] = names
         fields = get_model_fields(bases, attrs)
         attrs['base_fields'] = fields
         attrs['_field_indexes'] = {k: ix for ix, k in enumerate(attrs['base_fields'])}
@@ -58,10 +60,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     is_hidden = False
     readonly = False
 
-    display_name = None
-    plural_display_name = None
-    lowercase_name = None
-    url_name = None
+    names = {}
 
     id_field = 'id'
     base_fields = None
