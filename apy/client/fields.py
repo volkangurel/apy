@@ -51,12 +51,12 @@ class BaseField(object):
         return value
 
     # from json
-    def to_python(self, val):
-        if val is None:
+    def to_python(self, value):
+        if value is None:
             return None
-        if isinstance(val, self.python_type):
-            return val
-        return self.python_type(val)  # pylint: disable=E1102
+        if isinstance(value, self.python_type):
+            return value
+        return self.python_type(value)  # pylint: disable=E1102
 
     # from server
     def to_client(self, value):
@@ -71,6 +71,11 @@ class BooleanField(BaseField):
 class IntegerField(BaseField):
     json_type = 'number'
     python_type = int
+
+    # from json
+    def to_python(self, value):
+        if value == '': return None
+        return super(IntegerField, self).to_python(value)  # pylint: disable=E1102
 
 
 class LongField(BaseField):

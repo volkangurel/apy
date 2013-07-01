@@ -332,8 +332,11 @@ class InternalDispatch(object):
                     raise Exception('cannot create class %s, name for %s not specified' %
                                     (client_method.__name__, http_method))
                 category_methods.append(
-                    {'method': client_method, 'http_method': http_method,
-                     'name': client_method.names[http_method], 'form': client_method.get_input_form(http_method)})
+                    {'method': client_method,
+                     'http_method': http_method,
+                     'name': client_method.__name__,
+                     'display_name': client_method.names[http_method],
+                     'form': client_method.get_input_form(http_method)})
         self.urlpatterns = patterns('', *self.urls)
 
     def internal_call(self, request, http_method, client_method, dirty_data, raise_exception=True):
