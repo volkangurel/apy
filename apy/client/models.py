@@ -37,6 +37,8 @@ class BaseClientModelMetaClass(type):
         names = attrs.get('names', {})
         names.setdefault('display', split_camel_case(name))
         names.setdefault('plural_display', names['display'] + 's')
+        names.setdefault('item_display', names['display'])
+        names.setdefault('item_plural_display', names['item_display'] + 's')
         names.setdefault('lowercase', camel_case_to_snake_case(name))
         names.setdefault('url', names['plural_display'].lower().replace(' ', '-'))
         attrs['names'] = names
@@ -133,27 +135,31 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
 
     # form utils
     @classmethod
+    def get_id_field_name(cls):
+        return '%s_%s' % (cls.names['lowercase'], cls.id_field)
+
+    @classmethod
     def get_id_form_field(cls):
-        if 'id' not in cls.base_fields: raise Exception(cls.base_fields)
-        return forms.ModelFieldField(cls.base_fields[cls.id_field], help_text='ID')
+        if cls.id_field not in cls.base_fields: raise Exception(cls.base_fields)
+        return forms.ModelFieldField(cls.base_fields[cls.id_field], required=True, help_text='ID')
 
     @classmethod
     def get_create_form(cls):
-        form_fields = {cls.id_field: cls.get_id_form_field()}
+        form_fields = {}
         for k, f in cls.base_fields.items():
             if k not in form_fields and (f.required or f.modifiable):
                 form_fields[k] = forms.ModelFieldField(f)
         return type('PostForm', (forms.MethodForm,), form_fields)
 
     @classmethod
-    def get_read_form(cls):
-        form_fields = {cls.id_field: cls.get_id_form_field(),
+    def get_read_form(cls, id_field):
+        form_fields = {id_field: cls.get_id_form_field(),
                        'fields': forms.FieldsField(cls), }
         return type('GetForm', (forms.MethodForm,), form_fields)
 
     @classmethod
     def get_read_many_form(cls):
-        form_fields = {'%ss' % cls.id_field:
+        form_fields = {'%ss' % cls.get_id_field_name():
                        forms.ModelFieldListField(cls.base_fields[cls.id_field], required=False, help_text='IDs')}
         for k, f in cls.base_fields.items():
             if f.is_query_filter:
@@ -162,8 +168,8 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
         return type('GetForm', (forms.OptionalLimitOffsetForm,), form_fields)
 
     @classmethod
-    def get_nested_read_form(cls, nested_model):
-        form_fields = {cls.id_field: cls.get_id_form_field()}
+    def get_nested_read_form(cls, nested_model, id_field):
+        form_fields = {id_field: cls.get_id_form_field()}
         for k, f in nested_model.base_fields.items():
             if f.is_query_filter:
                 form_fields[k] = forms.ModelFieldField(f)
@@ -171,21 +177,21 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
         return type('GetForm', (forms.OptionalLimitOffsetForm,), form_fields)
 
     @classmethod
-    def get_modify_form(cls):
-        form_fields = {cls.id_field: cls.get_id_form_field()}
+    def get_modify_form(cls, id_field):
+        form_fields = {id_field: cls.get_id_form_field()}
         for k, f in cls.base_fields.items():
             if f.modifiable:
                 form_fields[k] = forms.ModelFieldField(f)
         return type('PutForm', (forms.ModifyForm,), form_fields)
 
     @classmethod
-    def get_delete_form(cls):
-        form_fields = {cls.id_field: cls.get_id_form_field()}
+    def get_delete_form(cls, id_field):
+        form_fields = {id_field: cls.get_id_form_field()}
         return type('DeleteForm', (forms.MethodForm,), form_fields)
 
     @classmethod
     def get_delete_many_form(cls):
-        form_fields = {'%ss' % cls.id_field: forms.ModelFieldListField(cls.base_fields[cls.id_field], help_text='IDs')}
+        form_fields = {'%ss' % cls.get_id_field_name(): forms.ModelFieldListField(cls.base_fields[cls.id_field], help_text='IDs')}
         return type('DeleteForm', (forms.MethodForm,), form_fields)
 
     # parse

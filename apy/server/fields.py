@@ -47,7 +47,7 @@ class NestedIdField(BaseNestedField):
 
     def to_client(self, request, owner, query_field, objects):
         ids = {obj.data[self.id_field] for obj in objects if self.id_field in obj.data}
-        nested_objects = {d.get_id(): d for d in self.get_model(owner).find_for_client
+        nested_objects = {d.get_id(): d for d in self.get_model(owner).read
                           (request, ids=ids, query_fields=query_field.sub_fields)}
         for obj in objects:
             obj.client_data[query_field.key] = nested_objects.get(obj.data[self.id_field])
@@ -62,7 +62,7 @@ class RelationIdField(BaseNestedField):  # pylint: disable=W0223
 
     def to_client(self, request, owner, query_field, objects):
         ids = {obj.get_id() for obj in objects}
-        related_objects = self.get_model(owner).find_for_client(
+        related_objects = self.get_model(owner).read(
             request, condition={self.filter_id_field: {'$in': ids}}, query_fields=query_field.sub_fields)
         data = collections.defaultdict(list)
         for obj in related_objects:

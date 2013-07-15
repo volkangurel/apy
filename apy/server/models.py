@@ -39,6 +39,7 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
 
     def __init__(self, *args, **kwargs):
         self.data = dict(*args, **kwargs)
+        self.updated_data = {}
         self.client_data = None
 
     def __repr__(self):
@@ -47,6 +48,37 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
     def get_id(self):
         return self.data[self.ClientModel.id_field]
 
+    # crud
+    @classmethod
+    def create(cls, request, row, **kwargs):
+        cls.check_create_permissions(request, row)
+        data = cls.db_insert(row, **kwargs)
+        return cls(data) if data else None
+
+    @classmethod
+    def read(cls, request, query_fields, **kwargs):
+        return cls.to_client(request, cls.db_find(**kwargs), query_fields=query_fields)
+
+    @classmethod
+    def read_one(cls, request, query_fields, **kwargs):
+        rows = cls.read(request, query_fields, **kwargs)
+        return rows[0] if rows else None
+
+    def update(self, request, updated_fields, **kwargs):
+        self.check_update_permissions(request)
+        return self.db_update(updated_fields, **kwargs)
+
+    def save(self, request, **kwargs):
+        val = self.update(request, self.updated_data, **kwargs)
+        self.data.update(self.updated_data)
+        self.updated_data.clear()
+        return val
+
+    def delete(self, request, **kwargs):
+        self.check_delete_permissions(request)
+        return self.db_remove(**kwargs)
+
+    # conversion to client model
     @classmethod
     def to_client(cls, request, objects, query_fields=None):
         query_fields = query_fields or cls.ClientModel.get_default_fields()
@@ -74,56 +106,56 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
                             raise KeyError("'%s' not in %r" % (query_field.key, obj.data))
                     else:
                         obj.client_data[query_field.key] = obj.data[query_field.key]
-        for obj in objects:
-            cls.check_read_permissions(request, obj.client_data)
 
-        return [cls.ClientModel(**obj.client_data) for obj in objects]
+        return [cls.ClientModel(**obj.check_read_permissions(request)) for obj in objects]
 
     def self_to_client(self, request, query_fields=None):
         return self.to_client(request, [self], query_fields=query_fields)[0]
 
     # database operations
     @classmethod
-    def find(cls, ids=None, condition=None, fields=None, **kwargs):
+    def db_find(cls, ids=None, condition=None, fields=None, **kwargs):
         raise NotImplementedError()
 
     @classmethod
-    def find_one(cls, **kwargs):
-        rows = cls.find(**kwargs)
+    def db_find_one(cls, **kwargs):
+        rows = cls.db_find(**kwargs)
         return rows[0] if rows else None
 
     @classmethod
-    def find_for_client(cls, request, query_fields, **kwargs):
-        return cls.to_client(request, cls.find(**kwargs), query_fields=query_fields)
-
-    @classmethod
-    def find_one_for_client(cls, request, query_fields, **kwargs):
-        rows = cls.find_for_client(request, query_fields, **kwargs)
-        return rows[0] if rows else None
-
-    @classmethod
-    def insert(cls, **kwargs):
+    def db_insert(cls, row, **kwargs):
         raise NotImplementedError()
 
-    @classmethod
-    def update(cls, **kwargs):
+    def db_update(self, updated_fields, **kwargs):
         raise NotImplementedError()
 
-    @classmethod
-    def remove(cls, **kwargs):
+    def db_remove(self, **kwargs):
         raise NotImplementedError()
-
-    #
-    @classmethod
-    def create(cls, request):
-        pass
 
     # permissions
     @classmethod
-    def check_read_permissions(cls, request, client_data):
+    def check_create_permissions(cls, request, row):
+        # raise PermissionDeniedError if this request is not allowed to create an object of this class
+        raise NotImplementedError()
+
+    def check_read_permissions(self, request):
+        # implement a method that uses the request and self.client_data and
+        # returns a dictionary of client data that this request has permission to access
+        raise NotImplementedError()
+
+    def check_update_permissions(self, request):
+        # raise PermissionDeniedError if this request is not allowed to update this object
+        raise NotImplementedError()
+
+    def check_delete_permissions(self, request):
+        # raise PermissionDeniedError if this request is not allowed to delete this object
         raise NotImplementedError()
 
 
-# exceptions
-class ValidationError(Exception):
-    pass
+# # exceptions
+# class ValidationError(Exception):
+#     pass
+
+
+# class PermissionDeniedError(Exception):
+#     pass

@@ -115,15 +115,15 @@ class ClientObjectMethodMetaClass(ClientMethodMetaClass):
     def __new__(cls, name, bases, attrs):
         if attrs.get('model') is not NotImplemented:
             model = attrs['model']
-            attrs.setdefault('id_field', model.id_field)
-            attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)' % (model.names['url'], model.id_field)
+            attrs.setdefault('id_field', model.get_id_field_name())
+            attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)' % (model.names['url'], attrs['id_field'])
             names = attrs.setdefault('names', {})
             names.setdefault('GET', 'Get %s' % model.names['display'])
             names.setdefault('PUT', 'Modify %s' % model.names['display'])
             names.setdefault('DELETE', 'Delete %s' % model.names['display'])
-            attrs.setdefault('GetForm', model.get_read_form())
-            attrs.setdefault('PutForm', model.get_modify_form())
-            attrs.setdefault('DeleteForm', model.get_delete_form())
+            attrs.setdefault('GetForm', model.get_read_form(attrs['id_field']))
+            attrs.setdefault('PutForm', model.get_modify_form(attrs['id_field']))
+            attrs.setdefault('DeleteForm', model.get_delete_form(attrs['id_field']))
         return super(ClientObjectMethodMetaClass, cls).__new__(cls, name, bases, attrs)
 
 
@@ -142,14 +142,17 @@ class ClientObjectNestedMethodMetaClass(ClientMethodMetaClass):
             nested_field = attrs['nested_field']
             field = model.base_fields[nested_field]  # pylint: disable=W0212
             attrs['nested_model'] = nested_model = field.get_model(model)
-            attrs.setdefault('id_field', model.id_field)
+            attrs.setdefault('id_field', model.get_id_field_name())
             attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)/%s' % (model.names['url'], attrs['id_field'], nested_field)
             names = attrs.setdefault('names', {})
-            attrs.setdefault('http_method_names', ['GET'] if nested_model.readonly else ['GET', 'POST'])
-            names.setdefault('GET', 'Get %s %s' % (model.names['display'], nested_model.names['plural_display']))
-            attrs.setdefault('GetForm', model.get_nested_read_form(nested_model))
-            if not nested_model.readonly:
-                names.setdefault('POST', 'Create %s in %s' % (nested_model.names['display'], model.names['display']))
+            readonly = nested_model.readonly or nested_model.parent_class is not model
+            attrs.setdefault('http_method_names', ['GET'] if readonly else ['GET', 'POST'])
+            if 'item_plural_display' not in nested_model.names:
+                raise Exception(nested_model.names)
+            names.setdefault('GET', 'Get %s %s' % (model.names['display'], nested_model.names['item_plural_display']))
+            attrs.setdefault('GetForm', model.get_nested_read_form(nested_model, attrs['id_field']))
+            if not readonly:
+                names.setdefault('POST', 'Create %s in %s' % (nested_model.names['item_display'], model.names['display']))
                 attrs.setdefault('PostForm', nested_model.get_create_form())
         return super(ClientObjectNestedMethodMetaClass, cls).__new__(cls, name, bases, attrs)
 
@@ -167,4 +170,9 @@ class ClientObjectNestedMethod(ClientMethod, metaclass=ClientObjectNestedMethodM
 def add_nested_methods_for_model(lcls, category, model, fields):
     for field in fields:
         cname = '%s%sAssociationMethod' % (model.__name__, snake_case_to_camel_case(field))
-        lcls[cname] = type(cname, (ClientObjectNestedMethod,), {'category': category, 'model': model, 'nested_field': field})
+        lcls[cname] = type(cname,
+                           (ClientObjectNestedMethod,),
+                           {'category': category,
+                            'model': model,
+                            'nested_field': field}
+                           )
