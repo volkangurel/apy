@@ -99,7 +99,7 @@ class StringField(BaseField):
 
 class ArrayField(BaseField):
     json_type = 'array'
-    python_type = tuple
+    python_type = list
 
     def to_json(self, request, value):
         if not value: return []

@@ -50,9 +50,9 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
 
     # crud
     @classmethod
-    def create(cls, request, row, **kwargs):
+    def create(cls, request, **row):
         cls.check_create_permissions(request, row)
-        data = cls.db_insert(row, **kwargs)
+        data = cls.db_insert(request, row)
         return cls(data) if data else None
 
     @classmethod
@@ -64,9 +64,9 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
         rows = cls.read(request, query_fields, **kwargs)
         return rows[0] if rows else None
 
-    def update(self, request, updated_fields, **kwargs):
+    def update(self, request, updated_fields):
         self.check_update_permissions(request)
-        return self.db_update(updated_fields, **kwargs)
+        return self.db_update(request, updated_fields)
 
     def save(self, request, **kwargs):
         val = self.update(request, self.updated_data, **kwargs)
@@ -74,9 +74,9 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
         self.updated_data.clear()
         return val
 
-    def delete(self, request, **kwargs):
+    def delete(self, request):
         self.check_delete_permissions(request)
-        return self.db_remove(**kwargs)
+        return self.db_remove(request)
 
     # conversion to client model
     @classmethod
@@ -123,13 +123,13 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
         return rows[0] if rows else None
 
     @classmethod
-    def db_insert(cls, row, **kwargs):
+    def db_insert(cls, request, row):
         raise NotImplementedError()
 
-    def db_update(self, updated_fields, **kwargs):
+    def db_update(self, request, updated_fields):
         raise NotImplementedError()
 
-    def db_remove(self, **kwargs):
+    def db_remove(self, request):
         raise NotImplementedError()
 
     # permissions
