@@ -119,12 +119,16 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     def get_id(self):
         return self[self.id_field]
 
+    def to_dict(self):
+        return dict(zip(self.keys, self))
+
     def to_json(self, request):
         d = collections.OrderedDict()
         for key in self.keys:
             d[key] = self.base_fields[key].to_json(request, self[key])
         return d
 
+    # fields
     @classmethod
     def get_selectable_fields(cls):
         return [QueryField(k, v, None, None) for k, v in cls.base_fields.items() if v.is_selectable]
@@ -132,6 +136,11 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     @classmethod
     def get_default_fields(cls):
         return [QueryField(k, v, None, None) for k, v in cls.base_fields.items() if v.is_default]
+
+    @classmethod
+    def get_nested_method_fields(cls):
+        return [(k, v) for k, v in cls.base_fields.items()
+                if isinstance(v, apy_fields.NestedField) and v.has_method]
 
     # form utils
     @classmethod
@@ -147,7 +156,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     def get_create_form(cls):
         form_fields = {}
         for k, f in cls.base_fields.items():
-            if k not in form_fields and (f.required or f.modifiable):
+            if k not in form_fields and (f.required or f.creatable or f.modifiable):
                 form_fields[k] = forms.ModelFieldField(f)
         return type('PostForm', (forms.MethodForm,), form_fields)
 

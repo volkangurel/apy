@@ -38,13 +38,14 @@ class DateTimeField(IntegerField):
 
 class ModelFieldField(StringField):
     def __init__(self, field, **kwargs):
+        kwargs.setdefault('help_text', field.description)
         kwargs.setdefault('required', field.required)
         super(ModelFieldField, self).__init__(**kwargs)
         self.field = field
 
     def clean(self, value):
         value = super(ModelFieldField, self).clean(value)
-        return self.field.to_python(value)
+        return self.field.from_form(value)
 
 
 class ModelFieldListField(StringField):
@@ -59,7 +60,7 @@ class ModelFieldListField(StringField):
         value = super(ModelFieldListField, self).clean(value)
         if not value:
             return []
-        return [self.field.to_python(v.strip()) for v in value.split(',') if v.strip()]
+        return [self.field.from_form(v.strip()) for v in value.split(',') if v.strip()]
 
 
 class FieldsField(StringField):

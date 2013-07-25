@@ -19,6 +19,7 @@ class BaseField(object):
                  create_access=None,
                  # updates
                  required=False,  # whether this field is required to create an object
+                 creatable=False,  # whether this field is optional to create an object
                  modifiable=False,  # whether field is modifiable
                  default_to_none=False,
                  # other
@@ -37,6 +38,7 @@ class BaseField(object):
         self.read_access = read_access
         # updates
         self.required = required
+        self.creatable = creatable
         self.modifiable = modifiable
         self.default_to_none = default_to_none
         # queries
@@ -60,6 +62,10 @@ class BaseField(object):
 
     # from server
     def to_client(self, value):
+        return self.to_python(value)
+
+    # to python
+    def from_form(self, value):
         return self.to_python(value)
 
 
@@ -139,9 +145,11 @@ class DateTimeField(IntegerField):
 class NestedField(BaseField):
 
     def __init__(self, model_or_name, **kwargs):
+        has_method = kwargs.pop('has_method', False)
         super(NestedField, self).__init__(**kwargs)
         self.model_or_name = model_or_name
         self._model = None
+        self.has_method = has_method
 
     def get_model(self, owner):  # pylint: disable=W0613
         if self._model is None:

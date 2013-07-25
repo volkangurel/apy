@@ -9,6 +9,7 @@ from django.conf import settings
 from django.conf.urls import patterns, url
 from django.utils import importlib
 
+from apy import utils
 from apy.client.methods import METHODS
 
 from .models import CLIENT_TO_SERVER_MODELS
@@ -313,6 +314,12 @@ class ServerObjectNestedMethod(ServerMethod, metaclass=ServerObjectNestedMethodM
 
     def process_get(self):
         raise NotImplementedError()
+
+
+def add_nested_methods_for_model(lcls, model, base_class):
+    for name, field in model.ClientModel.get_nested_method_fields():  # pylint: disable=W0612
+        cname = '%s%sNestedMethod' % (model.__name__, utils.snake_case_to_camel_case(name))
+        lcls[cname] = type(cname, (base_class,), {})
 
 
 # way to call the api internally

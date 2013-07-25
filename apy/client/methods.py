@@ -1,10 +1,8 @@
 import re
 
+from apy import utils
+
 METHODS = {}
-
-
-def snake_case_to_camel_case(name):
-    return ''.join(x.capitalize() for x in name.split('_'))
 
 
 class ClientMethodMetaClass(type):
@@ -137,13 +135,14 @@ class ClientObjectMethod(ClientMethod, metaclass=ClientObjectMethodMetaClass):
 class ClientObjectNestedMethodMetaClass(ClientMethodMetaClass):
 
     def __new__(cls, name, bases, attrs):
-        if attrs.get('model') is not NotImplemented and attrs.get('nested_field') is not NotImplemented:
+        if (attrs.get('model', NotImplemented) is not NotImplemented and
+                attrs.get('nested_field', NotImplemented) is not NotImplemented and
+                attrs.get('nested_field_name', NotImplemented) is not NotImplemented):
             model = attrs['model']
             nested_field = attrs['nested_field']
-            field = model.base_fields[nested_field]  # pylint: disable=W0212
-            attrs['nested_model'] = nested_model = field.get_model(model)
+            attrs['nested_model'] = nested_model = nested_field.get_model(model)
             attrs.setdefault('id_field', model.get_id_field_name())
-            attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)/%s' % (model.names['url'], attrs['id_field'], nested_field)
+            attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)/%s' % (model.names['url'], attrs['id_field'], attrs['nested_field_name'])
             names = attrs.setdefault('names', {})
             readonly = nested_model.readonly or nested_model.parent_class is not model
             attrs.setdefault('http_method_names', ['GET'] if readonly else ['GET', 'POST'])
@@ -163,16 +162,17 @@ class ClientObjectNestedMethod(ClientMethod, metaclass=ClientObjectNestedMethodM
     model = NotImplemented
     id_field = NotImplemented
     nested_field = NotImplemented
+    nested_field_name = NotImplemented
 
     nested_model = NotImplemented
 
 
-def add_nested_methods_for_model(lcls, category, model, fields):
-    for field in fields:
-        cname = '%s%sAssociationMethod' % (model.__name__, snake_case_to_camel_case(field))
+def add_nested_methods_for_model(lcls, model, category):
+    for name, field in model.get_nested_method_fields():
+        cname = '%s%sNestedMethod' % (model.__name__, utils.snake_case_to_camel_case(name))
         lcls[cname] = type(cname,
                            (ClientObjectNestedMethod,),
                            {'category': category,
                             'model': model,
-                            'nested_field': field}
-                           )
+                            'nested_field': field,
+                            'nested_field_name': name})
