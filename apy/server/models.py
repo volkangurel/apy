@@ -64,12 +64,12 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
         rows = cls.read(request, query_fields, **kwargs)
         return rows[0] if rows else None
 
-    def update(self, request, updated_fields):
-        self.check_update_permissions(request)
+    def update(self, request, **updated_fields):
+        self.check_update_permissions(request, updated_fields)
         return self.db_update(request, updated_fields)
 
-    def save(self, request, **kwargs):
-        val = self.update(request, self.updated_data, **kwargs)
+    def save(self, request):
+        val = self.update(request, **self.updated_data)
         self.data.update(self.updated_data)
         self.updated_data.clear()
         return val
@@ -143,7 +143,7 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
         # returns a dictionary of client data that this request has permission to access
         raise NotImplementedError()
 
-    def check_update_permissions(self, request):
+    def check_update_permissions(self, request, updated_fields):
         # raise PermissionDeniedError if this request is not allowed to update this object
         raise NotImplementedError()
 

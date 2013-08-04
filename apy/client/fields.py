@@ -136,7 +136,7 @@ class DateTimeField(IntegerField):
 
     def to_python(self, value):
         if not value: return None
-        return utils.ms_to_datetime(value)
+        return utils.ms_to_datetime(int(value))
 
     def to_client(self, value):
         return value
