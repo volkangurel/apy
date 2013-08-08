@@ -1,31 +1,26 @@
-import re
 import collections
-import urllib.request
-import urllib.parse
-import urllib.error
-import http.client
 import json
 import functools
-import datetime
-import decimal
+import urllib.parse
+import http.client as http_client
 
-from django import http as django_http
+from django import http
 from django.conf import settings
+from django.conf.urls import patterns, url
 from django.utils import importlib
 
-from apy.methods.errors import Errors
+from apy import utils
+from apy.client.methods import METHODS
+
+from .models import CLIENT_TO_SERVER_MODELS
+from .errors import Errors
 
 
-class ApiMethodMetaClass(type):
-    creation_counter = 0
-
-    def __new__(cls, name, bases, attrs):
-        attrs['class_creation_counter'] = ApiMethodMetaClass.creation_counter
-        ApiMethodMetaClass.creation_counter += 1
-        new_class = super(ApiMethodMetaClass, cls).__new__(cls, name, bases, attrs)
-        return new_class
+SERVER_METHODS = collections.OrderedDict()
+DEFAULT_RESPONSE_FORMAT = 'json'
 
 
+# helpers
 def import_errors(cls_path):
     module_path, cls_name = cls_path.rsplit('.', 1)
     try:
@@ -37,24 +32,24 @@ def import_errors(cls_path):
     return getattr(module, cls_name)
 
 
-class ApiMethod(object, metaclass=ApiMethodMetaClass):
-    """
-    View class based off of django.views.generic.View, main difference is dispatch doesn't
-    pass request, args and kwargs to methods, since they are already attributes of class instance
-    """
+class ServerMethodMetaClass(type):
+    creation_counter = 0
 
-    http_method_names = ['POST', 'GET', 'PUT', 'DELETE']
+    def __new__(cls, name, bases, attrs):
+        attrs['class_creation_counter'] = ServerMethodMetaClass.creation_counter
+        ServerMethodMetaClass.creation_counter += 1
+        if name in METHODS:
+            attrs['ClientMethod'] = METHODS[name]
+        new_class = super(ServerMethodMetaClass, cls).__new__(cls, name, bases, attrs)
+        client_method = attrs.get('ClientMethod', NotImplemented)
+        if client_method is not NotImplemented:
+            SERVER_METHODS[client_method] = new_class
+        return new_class
+
+
+class ServerMethod(object, metaclass=ServerMethodMetaClass):
+    ClientMethod = NotImplemented
     errors = import_errors(getattr(settings, 'APY_ERRORS')) if hasattr(settings, 'APY_ERRORS') else Errors
-
-    PostForm = None
-    GetForm = None
-    PutForm = None
-    DeleteForm = None
-
-    default_response_format = 'json'
-
-    url_pattern = None
-    names = {}
 
     def __init__(self, **kwargs):
         """
@@ -79,7 +74,7 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
         """
         # sanitize keyword arguments
         for key in initkwargs:
-            if key in cls.http_method_names:
+            if key in cls.ClientMethod.http_method_names:
                 raise TypeError("You tried to pass in the %s method name as a "
                                 "keyword argument to %s(). Don't do that."
                                 % (key, cls.__name__))
@@ -104,7 +99,7 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
         # defer to the error handler. Also defer to the error handler if the
         # request method isn't on the approved list.
         self.method = request.method.upper()
-        if self.method not in self.http_method_names:
+        if self.method not in self.ClientMethod.http_method_names:
             return self.http_method_not_allowed()
         self.request = request
         self.args = args
@@ -119,22 +114,22 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
 
         return self.return_response(response, http_status_code)
 
-    @classmethod
-    def internal_dispatch(cls, request, http_method, dirty_data, raise_exception=False):
-        self = cls()
+    def internal_dispatch(self, request, http_method, dirty_data, raise_exception=False):
         self.method = http_method
         self.request = request
+        self.args = None
+        self.kwargs = None
         self.dirty_data = dirty_data
         response, _ = self.get_response(raise_exception=raise_exception)
         return response
 
     def http_method_not_allowed(self):
-        message = 'Only %s calls allowed for this url' % (','.join(self.http_method_names))
+        message = 'Only %s calls allowed for this url' % (','.join(self.ClientMethod.http_method_names))
         response, http_status_code = self.error_response(self.errors.INVALID_HTTP_METHOD, [message])
         return self.return_response(response, http_status_code)
 
     ######################################
-    def ok_response(self, data=None, warnings=None, http_code=http.client.OK):
+    def ok_response(self, data=None, warnings=None, http_code=http_client.OK):
         response = {}
         response['ok'] = True
         if data is not None:
@@ -195,12 +190,8 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
                 k = k[:-2]
             data[k] = v
 
-    @classmethod
-    def get_input_form(cls, method):
-        return getattr(cls, '%sForm' % method.capitalize())
-
     def clean_data(self, dirty_data):
-        form = self.get_input_form(self.method)
+        form = self.ClientMethod.get_input_form(self.method)
         if form:
             if getattr(self.request, 'FILES'):
                 f = form(dirty_data, self.request.FILES)
@@ -226,47 +217,32 @@ class ApiMethod(object, metaclass=ApiMethodMetaClass):
                 d['limit'] = min(self.data['limit'], self.data['offset'] - d['offset'])
                 response['pagination']['prev'] = self.request.build_absolute_uri(self.request.path + '?' + urllib.parse.urlencode(d))
 
-        response_format = self.data and self.data.get('format') or self.default_response_format
+        response_format = self.data and self.data.get('format') or DEFAULT_RESPONSE_FORMAT
         if response_format not in ['json']:
-            response_format = 'json'  # TODO add support for xml
+            response_format = DEFAULT_RESPONSE_FORMAT  # TODO add support for xml
         if response_format == 'json':
-            formatted_response = json.dumps(response, cls=ApyJSONEncoder)
+            formatted_response = json_encode(response, self.request)
+            # raise Exception(formatted_response)
             mimetype = 'application/json'
             callback = self.data and self.data.get('callback')
             if callback:
                 formatted_response = '%s(%s)' % (callback, formatted_response)
                 mimetype = 'text/javascript'
 
-        return django_http.HttpResponse(formatted_response, status=http_status_code, mimetype=mimetype)
-
-    ######################################
-    # def process(self):
-    #     """Overwrite this in subclasses to create the logic for the API method"""
-    #     return self.error_response(self.errors.UNKNOWN_API_METHOD)
-
-    ######################################
-    @property
-    def url_doc(self):
-        return url_pattern_re.sub(url_pattern_repl, self.url_pattern)
+        return http.HttpResponse(formatted_response, status=http_status_code, mimetype=mimetype)
 
 
-url_pattern_re = re.compile('\(\?P<([^>]+)>[^()]+\)')
-
-
-def url_pattern_repl(x):
-    return '<i>:%s</i>' % x.group(1)
-
-
-class ApyJSONEncoder(json.JSONEncoder):
-    def default(self, obj):  # pylint: disable=E0202
-        if isinstance(obj, datetime.datetime):
-            return obj.isoformat()
-        elif isinstance(obj, decimal.Decimal):
-            return float(obj)
+def json_encode(response, request):
+    data = response.get('data')
+    if data is not None:
+        if isinstance(data, list):
+            response['data'] = [d.to_json(request) for d in data]
         else:
-            return super(ApyJSONEncoder, self).default(obj)
+            response['data'] = data.to_json(request)
+    return json.dumps(response)
 
 
+# errors
 class AccessForbiddenError(Exception):
     pass
 
@@ -275,3 +251,119 @@ class InvalidFormError(Exception):
     def __init__(self, form):
         Exception.__init__(self, form.errors.as_text())
         self.form = form
+
+
+# helper classes
+class ServerObjectsMethodMetaClass(ServerMethodMetaClass):
+    def __new__(cls, name, bases, attrs):
+        new_class = super(ServerObjectsMethodMetaClass, cls).__new__(cls, name, bases, attrs)
+        if new_class.ClientMethod is not NotImplemented:
+            new_class.model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.model]
+        return new_class
+
+
+class ServerObjectsMethod(ServerMethod, metaclass=ServerObjectsMethodMetaClass):
+    model = NotImplemented
+
+    def process_post(self):
+        raise NotImplementedError()
+
+    def process_get(self):
+        raise NotImplementedError()
+
+    def process_delete(self):
+        raise NotImplementedError()
+
+
+class ServerObjectMethodMetaClass(ServerMethodMetaClass):
+    def __new__(cls, name, bases, attrs):
+        new_class = super(ServerObjectMethodMetaClass, cls).__new__(cls, name, bases, attrs)
+        if new_class.ClientMethod is not NotImplemented:
+            new_class.model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.model]
+        return new_class
+
+
+class ServerObjectMethod(ServerMethod, metaclass=ServerObjectMethodMetaClass):
+    model = NotImplemented
+
+    def process_get(self):
+        raise NotImplementedError()
+
+    def process_put(self):
+        raise NotImplementedError()
+
+    def process_delete(self):
+        raise NotImplementedError()
+
+
+class ServerObjectNestedMethodMetaClass(ServerMethodMetaClass):
+    def __new__(cls, name, bases, attrs):
+        new_class = super(ServerObjectNestedMethodMetaClass, cls).__new__(cls, name, bases, attrs)
+        if new_class.ClientMethod is not NotImplemented:
+            new_class.model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.model]
+            new_class.nested_model = CLIENT_TO_SERVER_MODELS[new_class.ClientMethod.nested_model]
+        return new_class
+
+
+class ServerObjectNestedMethod(ServerMethod, metaclass=ServerObjectNestedMethodMetaClass):
+    model = NotImplemented
+    nested_model = NotImplemented
+
+    def process_post(self):
+        raise NotImplementedError()
+
+    def process_get(self):
+        raise NotImplementedError()
+
+
+def add_nested_methods_for_model(lcls, model, base_class):
+    for name, field in model.ClientModel.get_nested_method_fields():  # pylint: disable=W0612
+        cname = '%s%sNestedMethod' % (model.__name__, utils.snake_case_to_camel_case(name))
+        lcls[cname] = type(cname, (base_class,), {})
+
+
+# way to call the api internally
+class InternalDispatch(object):
+    def __init__(self):
+        self.server_methods = {}
+        self.urls = []
+        self.categories = collections.OrderedDict()
+        for client_method, server_method in SERVER_METHODS.items():
+            url_pattern = '^/%s$' % (client_method.url_pattern)
+            view = server_method.as_view()
+            self.server_methods[client_method] = server_method()
+            self.urls.append(url(url_pattern, view))
+            category_methods = self.categories.setdefault(client_method.category, [])
+            for http_method in client_method.http_method_names:
+                if http_method not in client_method.names:
+                    raise Exception('cannot create class %s, name for %s not specified' %
+                                    (client_method.__name__, http_method))
+                category_methods.append(
+                    {'method': client_method,
+                     'http_method': http_method,
+                     'name': client_method.__name__,
+                     'display_name': client_method.names[http_method],
+                     'form': client_method.get_input_form(http_method)})
+        self.urlpatterns = patterns('', *self.urls)
+
+    def internal_call(self, request, http_method, client_method, dirty_data, raise_exception=True):
+        dirty_data = dirty_data.copy()
+        if isinstance(client_method, str):
+            server_method = self.server_methods.get(METHODS[client_method])
+        else:
+            server_method = self.server_methods.get(client_method)
+        if not server_method:
+            raise http.Http404('Invalid client method: "%r"' % client_method)
+        return server_method.internal_dispatch(request, http_method, dirty_data, raise_exception=raise_exception)
+
+    def internal_post(self, request, client_method, dirty_data, raise_exception=True):
+        return self.internal_call(request, 'POST', client_method, dirty_data, raise_exception=raise_exception)
+
+    def internal_get(self, request, client_method, dirty_data, raise_exception=True):
+        return self.internal_call(request, 'GET', client_method, dirty_data, raise_exception=raise_exception)
+
+    def internal_put(self, request, client_method, dirty_data, raise_exception=True):
+        return self.internal_call(request, 'PUT', client_method, dirty_data, raise_exception=raise_exception)
+
+    def internal_delete(self, request, client_method, dirty_data, raise_exception=True):
+        return self.internal_call(request, 'DELETE', client_method, dirty_data, raise_exception=raise_exception)
