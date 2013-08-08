@@ -77,8 +77,8 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
                 keys.append(k)
             else:
                 v = None
-            if v is None and f.required:
-                raise ValueError('need to pass in %s to create a %s' % (k, cls.__name__))
+            # if v is None and f.required:
+            #     raise ValueError('need to pass in %s to create a %s' % (k, cls.__name__))
             vals.append(f.to_client(v))
         if kwargs:
             raise ValueError('invalid keys passed in to %s: %s' % (cls.__name__, ', '.join(kwargs)))
@@ -141,6 +141,10 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     def get_nested_method_fields(cls):
         return [(k, v) for k, v in cls.base_fields.items()
                 if isinstance(v, apy_fields.NestedField) and v.has_method]
+
+    @classmethod
+    def get_required_fields(cls):
+        return [k for k, f in cls.base_fields.items() if f.required]
 
     # form utils
     @classmethod
