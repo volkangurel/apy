@@ -146,8 +146,6 @@ class ClientObjectNestedMethodMetaClass(ClientMethodMetaClass):
             names = attrs.setdefault('names', {})
             readonly = nested_model.readonly or nested_model.parent_class is not model
             attrs.setdefault('http_method_names', ['GET'] if readonly else ['GET', 'POST'])
-            if 'item_plural_display' not in nested_model.names:
-                raise Exception(nested_model.names)
             names.setdefault('GET', 'Get %s %s' % (model.names['display'], nested_model.names['item_plural_display']))
             attrs.setdefault('GetForm', model.get_nested_read_form(nested_model, attrs['id_field']))
             if not readonly:

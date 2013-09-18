@@ -80,8 +80,8 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
             # if v is None and f.required:
             #     raise ValueError('need to pass in %s to create a %s' % (k, cls.__name__))
             vals.append(f.to_client(v))
-        if kwargs:
-            raise ValueError('invalid keys passed in to %s: %s' % (cls.__name__, ', '.join(kwargs)))
+        # if kwargs:
+        #     raise ValueError('invalid keys passed in to %s: %s' % (cls.__name__, ', '.join(kwargs)))
         self = tuple.__new__(cls, vals)
         self.keys = keys
         self.changes = None
