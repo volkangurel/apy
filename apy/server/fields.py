@@ -78,8 +78,9 @@ class AssociationField(BaseNestedField):
         self.method = method
 
     def to_client(self, request, owner, query_field, objects):
-        method = getattr(self.get_model(owner), self.method)
+        model = self.get_model(owner)
+        method = getattr(model, self.method)
         ids = {obj.get_id() for obj in objects}
-        data = method(request, ids, query_field.sub_fields)
+        data = method(request, ids, query_field.sub_fields or model.ClientModel.get_default_fields())
         for obj in objects:
             obj.client_data[query_field.key] = data.get(obj.get_id(), [])
