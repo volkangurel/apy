@@ -20,7 +20,7 @@ class IntegerField(BaseField, forms.IntegerField):
 
     def clean(self, value):
         value = forms.IntegerField.clean(self, value)
-        if not value is None and self.default_value is not None:
+        if value is None and self.default_value is not None:
             value = self.default_value
         return value
 
