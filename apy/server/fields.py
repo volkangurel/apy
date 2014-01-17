@@ -39,6 +39,14 @@ class BaseNestedField(BaseField):  # pylint: disable=W0223
             return self.model_or_name
 
 
+class NestedField(BaseNestedField):
+    # field that represents a model nested within a wrapping model
+
+    def to_client(self, request, owner, query_field, objects):
+        for obj in objects:
+            obj.client_data[query_field.key] = obj.data[query_field.key].self_to_client(request, query_field.sub_fields)
+
+
 class NestedIdField(BaseNestedField):
     # field that represents a model nested within a wrapping model, linked by an id
     def __init__(self, model_or_name, id_field, **kwargs):
