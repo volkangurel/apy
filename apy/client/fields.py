@@ -132,7 +132,7 @@ class DateTimeField(IntegerField):
 
     def to_json(self, request, value):
         if not value: return None
-        return utils.datetime_to_ms(value)
+        return str(utils.datetime_to_ms(value))
 
     def to_python(self, value):
         if not value: return None
