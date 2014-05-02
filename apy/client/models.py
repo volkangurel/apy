@@ -172,23 +172,23 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
         return type('GetForm', (forms.MethodForm,), form_fields)
 
     @classmethod
-    def get_read_many_form(cls):
+    def get_read_many_form(cls, base_form=forms.OptionalLimitOffsetForm):
         form_fields = {'%ss' % cls.get_id_field_name():
                        forms.ModelFieldListField(cls.base_fields[cls.id_field], required=False, help_text='IDs')}
         for k, f in cls.base_fields.items():
             if f.is_query_filter:
                 form_fields[k] = forms.ModelFieldField(f, required=False)
         form_fields['fields'] = forms.FieldsField(cls)
-        return type('GetForm', (forms.OptionalLimitOffsetForm,), form_fields)
+        return type('GetForm', (base_form,), form_fields)
 
     @classmethod
-    def get_nested_read_form(cls, nested_model, id_field):
+    def get_nested_read_form(cls, nested_model, id_field, base_form=forms.LimitOffsetForm):
         form_fields = {id_field: cls.get_id_form_field()}
         for k, f in nested_model.base_fields.items():
             if f.is_query_filter:
                 form_fields[k] = forms.ModelFieldField(f)
         form_fields['fields'] = forms.FieldsField(nested_model)
-        return type('GetForm', (forms.OptionalLimitOffsetForm,), form_fields)
+        return type('GetForm', (base_form,), form_fields)
 
     @classmethod
     def get_modify_form(cls, id_field):
