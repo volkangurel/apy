@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from setuptools import setup, find_packages
 
 setup(
@@ -7,10 +7,11 @@ setup(
 
     author='Volkan Gurel',
     author_email='me@volkangurel.com',
-    url='https://github.com/volkangurel/arzlan',
+    url='https://github.com/volkangurel/apy',
 
     packages=find_packages(),
     install_requires=[
         'django >= 1.5.1',
+        'pytz',
         ],
     )
