@@ -54,7 +54,7 @@ class NestedIdField(BaseNestedField):
         self.id_field = id_field
 
     def to_client(self, request, owner, query_field, objects):
-        ids = {obj.data[self.id_field] for obj in objects if self.id_field in obj.data}
+        ids = {obj.data[self.id_field] for obj in objects if obj.data.get(self.id_field)}
         nested_objects = {d.get_id(): d for d in self.get_model(owner).read
                           (request, ids=ids, query_fields=query_field.sub_fields)}
         for obj in objects:
@@ -81,14 +81,35 @@ class RelationIdField(BaseNestedField):  # pylint: disable=W0223
 
 class AssociationField(BaseNestedField):
     # field that represents a model nested within a wrapping model, fetched by a method on the wrapping model
-    def __init__(self, model_or_name, method, **kwargs):
+    def __init__(self, model_or_name, method, extra_kwargs=None, **kwargs):
         super(AssociationField, self).__init__(model_or_name, **kwargs)
         self.method = method
+        self.extra_kwargs = extra_kwargs or {}
 
     def to_client(self, request, owner, query_field, objects):
         model = self.get_model(owner)
         method = getattr(model, self.method)
         ids = {obj.get_id() for obj in objects}
-        data = method(request, ids, query_field.sub_fields or model.ClientModel.get_default_fields())
+        data = method(request, ids,
+                      query_field.sub_fields or model.ClientModel.get_default_fields(),
+                      **self.extra_kwargs)
+        for obj in objects:
+            obj.client_data[query_field.key] = data.get(obj.get_id(), [])
+
+
+class RelationField(AssociationField):
+    # field that represents a model nested within a wrapping model, linked by an id
+    def __init__(self, relation_model_or_name, filtered_relation_field, **kwargs):
+        super(RelationField, self).__init__(
+            relation_model_or_name, 'get_related_objects',
+            extra_kwargs={'filtered_relation_field': filtered_relation_field},
+            **kwargs)
+
+    def to_client(self, request, owner, query_field, objects):
+        model = self.get_model(owner)
+        ids = {obj.get_id() for obj in objects}
+        data = model.get_related_objects(
+            request, ids, query_field.sub_fields or model.ClientModel.get_default_fields(),
+            **self.extra_kwargs)
         for obj in objects:
             obj.client_data[query_field.key] = data.get(obj.get_id(), [])

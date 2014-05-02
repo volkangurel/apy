@@ -171,7 +171,15 @@ class NestedField(BaseField):
         return val
 
     def to_json(self, request, value):  # pylint: disable=W0613
+        if value is None:
+            return None
         if isinstance(value, list):
             return [v.to_json(request) for v in value]
         else:
             return value.to_json(request)
+
+
+class RelationField(NestedField):
+    def __init__(self, model_or_name, relation_filter_field, **kwargs):
+        super(RelationField, self).__init__(model_or_name, **kwargs)
+        self.relation_filter_field = relation_filter_field

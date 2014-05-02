@@ -2,6 +2,8 @@ import re
 
 from apy import utils
 
+from . import models
+
 METHODS = {}
 
 
@@ -144,13 +146,20 @@ class ClientObjectNestedMethodMetaClass(ClientMethodMetaClass):
             attrs.setdefault('id_field', model.get_id_field_name())
             attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)/%s' % (model.names['url'], attrs['id_field'], attrs['nested_field_name'])
             names = attrs.setdefault('names', {})
-            readonly = nested_model.readonly or nested_model.parent_class is not model
-            attrs.setdefault('http_method_names', ['GET'] if readonly else ['GET', 'POST'])
+            if 'http_method_names' not in attrs:
+                attrs['http_method_names'] = ['GET']
+                if issubclass(nested_model, models.BaseClientRelation):
+                    attrs['http_method_names'].extend(['POST', 'DELETE'])
+                elif not nested_model.readonly or nested_model.parent_class is model:
+                    attrs['http_method_names'].append('POST')
             names.setdefault('GET', 'Get %s %s' % (model.names['display'], nested_model.names['item_plural_display']))
             attrs.setdefault('GetForm', model.get_nested_read_form(nested_model, attrs['id_field']))
-            if not readonly:
+            if 'POST' in attrs['http_method_names']:
                 names.setdefault('POST', 'Create %s in %s' % (nested_model.names['item_display'], model.names['display']))
                 attrs.setdefault('PostForm', nested_model.get_create_form())
+            if 'DELETE' in attrs['http_method_names']:
+                names.setdefault('DELETE', 'Delete %s from %s' % (nested_model.names['item_display'], model.names['display']))
+                attrs.setdefault('DeleteForm', nested_model.get_create_form())
         return super(ClientObjectNestedMethodMetaClass, cls).__new__(cls, name, bases, attrs)
 
 

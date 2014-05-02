@@ -67,6 +67,7 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
     id_field = 'id'
     base_fields = None
     _field_indexes = None
+    parent_class = None
 
     def __new__(cls, **kwargs):
         vals = []
@@ -271,6 +272,5 @@ def parse_query_fields(fields_string, model=None, ignore_invalid_fields=False):
     return fields
 
 
-
-class BaseClientRelation(BaseClientModel):  #TODO
+class BaseClientRelation(BaseClientModel):
     id_field = None

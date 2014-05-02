@@ -152,6 +152,12 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
         raise NotImplementedError()
 
 
+class BaseServerRelation(BaseServerModel):  # pylint: disable=W0223
+
+    @classmethod
+    def get_related_objects(cls, request, ids, query_fields, filtered_relation_field=None, condition=None, limit=None, offset=None):
+        raise NotImplementedError()
+
 # # exceptions
 # class ValidationError(Exception):
 #     pass
