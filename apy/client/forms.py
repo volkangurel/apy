@@ -110,6 +110,10 @@ class ModifyForm(MethodForm):
 
 
 # helper forms
+class SearchForm(MethodForm):
+    q = StringField(required=False, help_text='Search query.')
+
+
 class LimitOffsetForm(MethodForm):
     append_fields = True
 
@@ -122,3 +126,11 @@ class OptionalLimitOffsetForm(MethodForm):
 
     limit = IntegerField(required=False, min_value=1, max_value=1000, default_value=None, help_text='Limit.')
     offset = IntegerField(required=False, min_value=0, max_value=1000, default_value=0, help_text='Offset.')
+
+
+class SearchableLimitOffsetForm(LimitOffsetForm, SearchForm):
+    pass
+
+
+class SearchableOptionalLimitOffsetForm(OptionalLimitOffsetForm, SearchForm):
+    pass
