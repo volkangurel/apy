@@ -72,7 +72,7 @@ class FieldsField(StringField):
 
     def clean(self, value):
         value = super(FieldsField, self).clean(value)
-        return self.model.parse_query_fields(value) if value else self.model.get_default_fields()
+        return self.model.parse_query_fields(value) if value else None
 
 
 # forms

@@ -93,7 +93,7 @@ class BaseServerModel(object, metaclass=BaseServerModelMetaClass):
         for query_field in query_fields:
             client_field = cls.ClientModel.base_fields.get(query_field.key)
             if client_field is None:
-                raise Exception('invalid query field %r' % query_field)
+                raise Exception('invalid query field %r' % (query_field, ))
             server_field = cls.base_fields.get(query_field.key)
             if server_field is not None:
                 server_field.to_client(request, cls, query_field, objects)
