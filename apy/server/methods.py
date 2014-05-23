@@ -8,6 +8,7 @@ from django import http
 from django.conf import settings
 from django.conf.urls import patterns, url
 from django.utils import importlib
+from django.http.multipartparser import MultiPartParserError
 
 from apy import utils
 from apy.client.methods import METHODS
@@ -174,11 +175,9 @@ class ServerMethod(object, metaclass=ServerMethodMetaClass):
         elif self.method.upper() == 'POST':
             self._add_querydict_to_data(self.request.POST, data)
         elif self.method.upper() == 'PUT':
-            put_querydict = self.request.parse_file_upload(self.request.META, self.request)[0]
-            self._add_querydict_to_data(put_querydict, data)
+            self._parse_request_body(data)
         elif self.method.upper() == 'DELETE':
-            delete_querydict = self.request.parse_file_upload(self.request.META, self.request)[0]
-            self._add_querydict_to_data(delete_querydict, data)
+            self._parse_request_body(data)
         # add kwargs from url path
         if self.kwargs:
             data.update(self.kwargs)
@@ -189,6 +188,17 @@ class ServerMethod(object, metaclass=ServerMethodMetaClass):
             if k.endswith('[]'):
                 k = k[:-2]
             data[k] = v
+
+    def _parse_request_body(self, data):
+        content_type = self.request.META.get('HTTP_CONTENT_TYPE', self.request.META.get('CONTENT_TYPE', ''))
+        if not content_type: return
+        if content_type.startswith('multipart/'):
+            querydict = self.request.parse_file_upload(self.request.META, self.request)[0]
+        elif content_type.startswith('application/json'):
+            querydict = json.loads(self.request.body.decode('utf-8'))
+        else:
+            raise Exception('invalid content type: {0}'.format(content_type))
+        self._add_querydict_to_data(querydict, data)
 
     def clean_data(self, dirty_data):
         form = self.ClientMethod.get_input_form(self.method)
@@ -202,6 +212,8 @@ class ServerMethod(object, metaclass=ServerMethodMetaClass):
             cleaned_data = f.cleaned_data
         else:
             cleaned_data = {}
+        if dirty_data.get('callback'):
+            cleaned_data['callback'] = str(dirty_data['callback'])
         return cleaned_data
 
     def return_response(self, response, http_status_code):
@@ -324,7 +336,7 @@ def add_nested_methods_for_model(lcls, model, base_class):
 
 # way to call the api internally
 class InternalDispatch(object):
-    def __init__(self):
+    def __init__(self, version):
         self.server_methods = {}
         self.urls = []
         self.categories = collections.OrderedDict()
@@ -332,7 +344,9 @@ class InternalDispatch(object):
             url_pattern = '^/%s$' % (client_method.url_pattern)
             view = server_method.as_view()
             self.server_methods[client_method] = server_method()
-            self.urls.append(url(url_pattern, view))
+            self.urls.append(url(
+                    url_pattern, view,
+                    name='api-v{version}-{name}'.format(version=version, name=client_method.__name__)))
             category_methods = self.categories.setdefault(client_method.category, [])
             for http_method in client_method.http_method_names:
                 if http_method not in client_method.names:
