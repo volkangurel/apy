@@ -117,6 +117,9 @@ class BaseClientModel(tuple, metaclass=BaseClientModelMetaClass):
             raise ValueError('cannot set %s, field not modifiable in %s' % (key, self.__class__.__name__))
         self.changes[key] = field.to_client(value)
 
+    def __contains__(self, key):
+        return key in self._field_indexes
+
     def get_id(self):
         return self[self.id_field]
 
@@ -265,7 +268,7 @@ def parse_query_fields(fields_string, model=None, ignore_invalid_fields=False):
                 fields.append(QueryField(sf, field, None, None))
     if invalid_fields and not ignore_invalid_fields:
         plural = 's' if len(invalid_fields) > 1 else ''
-        raise Exception('invalid field%s: %s' % (plural, ','.join(invalid_fields)))
+        raise Exception('invalid field%s "%s" for model %s' % (plural, ','.join(invalid_fields), model.__name__))
     # make sure id field is always there
     if model is not None and model.id_field and model.id_field not in [f.key for f in fields]:
         fields.insert(0, QueryField(model.id_field, model.base_fields[model.id_field], None, None))
