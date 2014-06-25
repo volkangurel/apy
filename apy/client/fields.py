@@ -66,12 +66,18 @@ class BaseField(object):
 
     # to python
     def from_form(self, value):
+        if value == '': value = None
         return self.to_python(value)
 
 
 class BooleanField(BaseField):
     json_type = 'boolean'
     python_type = bool
+
+    def from_form(self, value):
+        if value in ['0', 'false', 'False']:
+            value = False
+        return super(BooleanField, self).from_form(value)
 
 
 class IntegerField(BaseField):
