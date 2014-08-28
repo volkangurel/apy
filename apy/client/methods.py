@@ -145,13 +145,16 @@ class ClientObjectNestedMethodMetaClass(ClientMethodMetaClass):
             attrs['nested_model'] = nested_model = nested_field.get_model(model)
             attrs.setdefault('id_field', model.get_id_field_name())
             attrs['url_pattern'] = r'%s/(?P<%s>[^/]+)/%s' % (model.names['url'], attrs['id_field'], attrs['nested_field_name'])
-            names = attrs.setdefault('names', {})
+            names = attrs.setdefault('names', nested_field.method_names or {})
             if 'http_method_names' not in attrs:
-                attrs['http_method_names'] = ['GET']
-                if issubclass(nested_model, models.BaseClientRelation):
-                    attrs['http_method_names'].extend(['POST', 'DELETE'])
-                elif not nested_model.readonly or nested_model.parent_class is model:
-                    attrs['http_method_names'].append('POST')
+                if names:
+                    attrs['http_method_names'] = list(names.keys())
+                else:
+                    attrs['http_method_names'] = ['GET']
+                    if issubclass(nested_model, models.BaseClientRelation):
+                        attrs['http_method_names'].extend(['POST', 'DELETE'])
+                    elif not nested_model.readonly or nested_model.parent_class is model:
+                        attrs['http_method_names'].append('POST')
             names.setdefault('GET', 'Get %s %s' % (model.names['display'], nested_model.names['item_plural_display']))
             attrs.setdefault('GetForm', model.get_nested_read_form(nested_model, attrs['id_field']))
             if 'POST' in attrs['http_method_names']:

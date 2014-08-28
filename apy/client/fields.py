@@ -152,10 +152,12 @@ class NestedField(BaseField):
 
     def __init__(self, model_or_name, **kwargs):
         has_method = kwargs.pop('has_method', False)
+        method_names = kwargs.pop('method_names', None)
         super(NestedField, self).__init__(**kwargs)
         self.model_or_name = model_or_name
         self._model = None
         self.has_method = has_method
+        self.method_names = method_names
 
     def get_model(self, owner):  # pylint: disable=W0613
         if self._model is None:

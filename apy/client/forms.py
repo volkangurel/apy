@@ -99,6 +99,9 @@ class ModifyForm(MethodForm):
 
     def clean(self):
         self.cleaned_data = super(ModifyForm, self).clean()
+        extra_fields = set(self.data.keys()) - set(self.cleaned_data.keys())
+        if extra_fields:
+            raise forms.ValidationError('unrecognized fields: %s' % ', '.join('"%s"' % f for f in extra_fields))
         for name, field in self.fields.items():
             if name in self.cleaned_data and getattr(field, 'combined_field', None):
                 self.cleaned_data.setdefault(field.combined_field, {})

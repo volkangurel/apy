@@ -37,8 +37,11 @@ class BaseClientModelMetaClass(type):
         names = attrs.get('names', {})
         names.setdefault('display', split_camel_case(name))
         names.setdefault('plural_display', names['display'] + 's')
-        names.setdefault('item_display', names['display'])
-        names.setdefault('item_plural_display', names['item_display'] + 's')
+        if 'item_display' not in names:
+            names['item_display'] = names['display']
+            names.setdefault('item_plural_display', names['plural_display'])
+        else:
+            names.setdefault('item_plural_display', names['item_display'] + 's')
         names.setdefault('lowercase', camel_case_to_snake_case(name))
         names.setdefault('url', names['plural_display'].lower().replace(' ', '-'))
         attrs['names'] = names
